@@ -12,10 +12,10 @@ import {
   ShieldAlert,
   FileText,
   CheckCircle2,
-  Download,
 } from 'lucide-react';
 import { MinecraftHeaderVersions, MinecraftVersionSection } from '@/components/MinecraftVersionDisplay';
 import { VersionDownloadSection } from '@/components/VersionDownloadSection';
+import { ModDetailDownloadTrigger } from '@/components/ModDetailDownloadTrigger';
 import { getModrinthProjectVersions } from '@/lib/modrinth';
 import type { Mod, ModVersion, ModRestriction } from '@/types/database';
 
@@ -126,15 +126,7 @@ export default async function ModDetailPage({ params }: PageProps) {
           <span>Zurück zur Mod-Übersicht</span>
         </Link>
 
-        {mod.status !== 'blocked' && (
-          <a
-            href="#download"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Zum Download</span>
-          </a>
-        )}
+        <ModDetailDownloadTrigger mod={mod} versions={versions} />
       </div>
 
       {/* Main Header Panel */}
