@@ -2,7 +2,7 @@
 
 import React, { useState, useTransition } from 'react';
 import { syncModExternalData } from '@/actions/syncMod';
-import { RefreshCw, CheckCircle2, AlertCircle, Sparkles, Bell } from 'lucide-react';
+import { RefreshCw, CheckCircle2, AlertCircle, Bell } from 'lucide-react';
 
 interface SyncModButtonProps {
   modId: string;

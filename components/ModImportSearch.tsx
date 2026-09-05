@@ -17,7 +17,6 @@ import {
   Shield,
   Layers,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -110,7 +109,7 @@ export function ModImportSearch({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#20242e] pb-3">
         <div>
           <h2 className="text-sm font-semibold text-white tracking-wide flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <Search className="w-4 h-4 text-emerald-400" />
             <span>Modrinth- & Quellensuche</span>
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">

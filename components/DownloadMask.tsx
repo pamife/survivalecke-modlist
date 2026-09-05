@@ -18,7 +18,6 @@ import {
   ChevronUp,
   Lock,
   ShieldAlert,
-  Sparkles,
   Clock,
 } from 'lucide-react';
 
@@ -328,7 +327,7 @@ export function DownloadMask({ mod, versions }: DownloadMaskProps) {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-amber-400 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Layers className="w-3.5 h-3.5" />
                   <span>Neueste Versionen (Release, Beta, Alpha verfügbar)</span>
                 </span>
                 <span className="text-[10px] text-zinc-400">Wähle deinen bevorzugten Versions-Zweig</span>

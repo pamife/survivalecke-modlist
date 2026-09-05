@@ -19,7 +19,6 @@ import {
   ShieldAlert,
   FileText,
   Check,
-  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Mod, ModStatus, ModSource, ModRestriction, ModVersion } from '@/types/database';
@@ -179,18 +178,6 @@ export function AdminModForm({
 
   const setAllVersionsStatus = (targetStatus: 'allowed' | 'restricted' | 'blocked' | 'unknown') => {
     setVersionsConfig((prev) => prev.map((v) => ({ ...v, status: targetStatus })));
-  };
-
-  const handleApplyAiRestrictions = (suggested: Array<{ title: string; description: string }>) => {
-    const newItems: StructuredRestrictionItem[] = suggested.map((s, idx) => ({
-      id: `ai-${Date.now()}-${idx}`,
-      title: s.title,
-      description: s.description,
-    }));
-    setRestrictionsList((prev) => [...prev, ...newItems]);
-    if (status === 'allowed' || status === 'unknown') {
-      setStatus('restricted');
-    }
   };
 
   // Handle successful import from ModImportSearch
@@ -1105,7 +1092,7 @@ export function AdminModForm({
         </div>
       </form>
 
-      {/* Changelog & AI Analysis Modal */}
+      {/* Changelog Modal */}
       {activeChangelogVersion && (
         <VersionChangelogModal
           isOpen={Boolean(activeChangelogVersion)}
@@ -1115,7 +1102,6 @@ export function AdminModForm({
           releaseType={activeChangelogVersion.release_type}
           publishedAt={activeChangelogVersion.published_at}
           changelog={activeChangelogVersion.changelog}
-          onApplySuggestedRestrictions={handleApplyAiRestrictions}
         />
       )}
     </div>
