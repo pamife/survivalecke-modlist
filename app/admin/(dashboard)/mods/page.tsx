@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PlusCircle, Edit, Trash2, ExternalLink } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
 import { deleteMod } from '@/actions/adminMods';
+import { SyncModButton } from '@/components/SyncModButton';
 import type { Mod } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,7 @@ export default async function AdminModsPage() {
                 <tr className="border-b border-[#232730] bg-[#101216] text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
                   <th className="py-3 px-4">Mod</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Quelle</th>
                   <th className="py-3 px-4">Kategorie</th>
                   <th className="py-3 px-4">Loader</th>
                   <th className="py-3 px-4 text-right">Aktionen</th>
@@ -54,13 +56,41 @@ export default async function AdminModsPage() {
                 {modList.map((mod) => (
                   <tr key={mod.id} className="hover:bg-[#181b22] transition-colors">
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-zinc-100">{mod.name}</div>
-                      <div className="text-[11px] text-zinc-400 font-mono">
-                        /{mod.slug} {mod.mod_id && `• ID: ${mod.mod_id}`}
+                      <div className="flex items-center gap-3">
+                        {mod.icon_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={mod.icon_url}
+                            alt=""
+                            className="w-8 h-8 rounded bg-zinc-800 object-cover border border-[#232730] shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-zinc-800 border border-[#232730] flex items-center justify-center text-zinc-500 font-bold shrink-0">
+                            {mod.name.charAt(0) || 'M'}
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-semibold text-zinc-100">{mod.name}</div>
+                          <div className="text-[11px] text-zinc-400 font-mono">
+                            /{mod.slug} {mod.mod_id && `• ID: ${mod.mod_id}`}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 px-4">
                       <StatusBadge status={mod.status} size="sm" />
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="space-y-0.5">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono capitalize bg-zinc-800 text-zinc-300 border border-zinc-700">
+                          {mod.source || 'manuell'}
+                        </span>
+                        {mod.last_synced_at && (
+                          <div className="text-[10px] text-zinc-500">
+                            Sync: {new Date(mod.last_synced_at).toLocaleDateString('de-DE')}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-zinc-300">{mod.category}</td>
                     <td className="py-3 px-4 text-zinc-300">
@@ -91,7 +121,7 @@ export default async function AdminModsPage() {
                         >
                           <button
                             type="submit"
-                            className="p-1 text-rose-400 hover:text-rose-300"
+                            className="p-1 text-rose-400 hover:text-rose-300 cursor-pointer"
                             title="Löschen"
                           >
                             <Trash2 className="w-4 h-4" />

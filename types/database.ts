@@ -9,6 +9,15 @@ export type Json =
 export type ModStatus = 'allowed' | 'restricted' | 'blocked' | 'unknown';
 export type UserRole = 'admin' | 'moderator' | 'user';
 export type SuggestionStatus = 'pending' | 'accepted' | 'rejected';
+export type ModSource = 'modrinth' | 'curseforge' | 'manual';
+
+export interface ModRestriction {
+  id: string;
+  mod_id: string;
+  title: string;
+  description: string;
+  created_at: string;
+}
 
 export type Database = {
   __InternalSupabase: {
@@ -54,6 +63,38 @@ export type Database = {
           user_id?: string | null;
         };
         Relationships: [];
+      };
+      mod_restrictions: {
+        Row: {
+          created_at: string;
+          description: string;
+          id: string;
+          mod_id: string;
+          title: string;
+        };
+        Insert: {
+          created_at?: string;
+          description: string;
+          id?: string;
+          mod_id: string;
+          title: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string;
+          id?: string;
+          mod_id?: string;
+          title?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "mod_restrictions_mod_id_fkey";
+            columns: ["mod_id"];
+            isOneToOne: false;
+            referencedRelation: "mods";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       mod_reviews: {
         Row: {
@@ -147,6 +188,8 @@ export type Database = {
           mod_id: string;
           mod_version: string;
           note: string | null;
+          published_at: string | null;
+          source_version_id: string | null;
           status: string;
         };
         Insert: {
@@ -157,6 +200,8 @@ export type Database = {
           mod_id: string;
           mod_version: string;
           note?: string | null;
+          published_at?: string | null;
+          source_version_id?: string | null;
           status?: string;
         };
         Update: {
@@ -167,6 +212,8 @@ export type Database = {
           mod_id?: string;
           mod_version?: string;
           note?: string | null;
+          published_at?: string | null;
+          source_version_id?: string | null;
           status?: string;
         };
         Relationships: [
@@ -187,8 +234,10 @@ export type Database = {
           curseforge_id: string | null;
           curseforge_url: string | null;
           description: string | null;
+          icon_url: string | null;
           id: string;
           last_reviewed_at: string;
+          last_synced_at: string | null;
           loaders: string[];
           minecraft_versions: string[];
           mod_id: string | null;
@@ -198,6 +247,8 @@ export type Database = {
           reason: string | null;
           restrictions: string | null;
           slug: string;
+          source: string;
+          source_project_id: string | null;
           source_url: string | null;
           status: string;
           updated_at: string;
@@ -210,8 +261,10 @@ export type Database = {
           curseforge_id?: string | null;
           curseforge_url?: string | null;
           description?: string | null;
+          icon_url?: string | null;
           id?: string;
           last_reviewed_at?: string;
+          last_synced_at?: string | null;
           loaders?: string[];
           minecraft_versions?: string[];
           mod_id?: string | null;
@@ -221,6 +274,8 @@ export type Database = {
           reason?: string | null;
           restrictions?: string | null;
           slug: string;
+          source?: string;
+          source_project_id?: string | null;
           source_url?: string | null;
           status: string;
           updated_at?: string;
@@ -233,8 +288,10 @@ export type Database = {
           curseforge_id?: string | null;
           curseforge_url?: string | null;
           description?: string | null;
+          icon_url?: string | null;
           id?: string;
           last_reviewed_at?: string;
+          last_synced_at?: string | null;
           loaders?: string[];
           minecraft_versions?: string[];
           mod_id?: string | null;
@@ -244,6 +301,8 @@ export type Database = {
           reason?: string | null;
           restrictions?: string | null;
           slug?: string;
+          source?: string;
+          source_project_id?: string | null;
           source_url?: string | null;
           status?: string;
           updated_at?: string;
@@ -295,8 +354,9 @@ export type Database = {
   };
 };
 
-export type Mod = Omit<Database['public']['Tables']['mods']['Row'], 'status'> & {
+export type Mod = Omit<Database['public']['Tables']['mods']['Row'], 'status' | 'source'> & {
   status: ModStatus;
+  source: ModSource;
 };
 export type ModVersion = Omit<Database['public']['Tables']['mod_versions']['Row'], 'status'> & {
   status: 'allowed' | 'restricted' | 'blocked';

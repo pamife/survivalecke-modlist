@@ -10,11 +10,11 @@ import {
   Layers,
   Cpu,
   ExternalLink,
-  AlertTriangle,
+  ShieldAlert,
   FileText,
   CheckCircle2,
 } from 'lucide-react';
-import type { Mod, ModVersion } from '@/types/database';
+import type { Mod, ModVersion, ModRestriction } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +70,15 @@ export default async function ModDetailPage({ params }: PageProps) {
 
   const mod = modData as unknown as Mod;
 
+  // Fetch structured restrictions
+  const { data: restrictionsData } = await supabase
+    .from('mod_restrictions')
+    .select('*')
+    .eq('mod_id', mod.id)
+    .order('created_at', { ascending: true });
+
+  const restrictions = (restrictionsData || []) as unknown as ModRestriction[];
+
   // Fetch version-specific overrides/details if any
   const { data: versionsData } = await supabase
     .from('mod_versions')
@@ -95,24 +104,75 @@ export default async function ModDetailPage({ params }: PageProps) {
       {/* Main Header Panel */}
       <div className="bg-[#14161b] border border-[#232730] rounded-md p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
-                {mod.category}
-              </span>
-              {mod.mod_id && (
-                <span className="text-xs font-mono text-zinc-400">
-                  ID: {mod.mod_id}
+          <div className="flex items-start gap-4">
+            {mod.icon_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mod.icon_url}
+                alt={mod.name}
+                className="w-16 h-16 rounded-lg bg-zinc-800 object-cover border border-[#232730] shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-lg bg-zinc-800 border border-[#232730] flex items-center justify-center text-zinc-500 font-bold text-2xl shrink-0">
+                {mod.name.charAt(0) || 'M'}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-mono uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                  {mod.category}
                 </span>
-              )}
+                {mod.mod_id && (
+                  <span className="text-xs font-mono text-zinc-400">
+                    ID: {mod.mod_id}
+                  </span>
+                )}
+                {mod.source && mod.source !== 'manual' && (
+                  <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 capitalize">
+                    {mod.source}
+                  </span>
+                )}
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                {mod.name}
+              </h1>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {mod.name}
-            </h1>
           </div>
 
           <StatusBadge status={mod.status} size="lg" />
         </div>
+
+        {/* Platform Direct Badges */}
+        {(isValidExternalUrl(mod.modrinth_url) || isValidExternalUrl(mod.curseforge_url)) && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {isValidExternalUrl(mod.modrinth_url) && (
+              <a
+                href={mod.modrinth_url!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#101216] hover:bg-[#181b22] border border-[#262b35] hover:border-emerald-700/60 text-xs text-zinc-300 hover:text-emerald-300 transition-colors"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Verfügbar auf Modrinth</span>
+                <ExternalLink className="w-3 h-3 text-zinc-500" />
+              </a>
+            )}
+
+            {isValidExternalUrl(mod.curseforge_url) && (
+              <a
+                href={mod.curseforge_url!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#101216] hover:bg-[#181b22] border border-[#262b35] hover:border-amber-700/60 text-xs text-zinc-300 hover:text-amber-300 transition-colors"
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>Verfügbar auf CurseForge</span>
+                <ExternalLink className="w-3 h-3 text-zinc-500" />
+              </a>
+            )}
+          </div>
+        )}
 
         {mod.description && (
           <p className="text-xs sm:text-sm text-zinc-300 border-t border-[#1f232c] pt-4">
@@ -162,7 +222,7 @@ export default async function ModDetailPage({ params }: PageProps) {
               <span>Geprüfte Versionen</span>
             </div>
             <div className="font-medium text-zinc-200">
-              {versions.length > 0 ? `${versions.length} Versionen` : 'Standard'}
+              {versions.length > 0 ? `${versions.length} Versionen` : 'Alle Versionen'}
             </div>
           </div>
         </div>
@@ -181,16 +241,33 @@ export default async function ModDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Restrictions / Auflagen */}
-      {mod.restrictions && (
-        <div className="bg-amber-950/20 border border-amber-800/40 rounded-md p-6 space-y-2">
+      {/* Restrictions / Auflagen (Structured Display) */}
+      {(restrictions.length > 0 || mod.restrictions) && (
+        <div className="bg-amber-950/20 border border-amber-800/40 rounded-md p-6 space-y-3">
           <h2 className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
             <span>Auflagen & Einschränkungen für Survivalecke</span>
           </h2>
-          <div className="text-xs sm:text-sm text-amber-200 whitespace-pre-line leading-relaxed">
-            {mod.restrictions}
-          </div>
+
+          {restrictions.length > 0 ? (
+            <ul className="space-y-3 pt-1">
+              {restrictions.map((r) => (
+                <li key={r.id} className="space-y-0.5 border-b border-amber-900/30 last:border-0 pb-2.5 last:pb-0">
+                  <div className="text-xs sm:text-sm font-semibold text-amber-200 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span>{r.title}</span>
+                  </div>
+                  <p className="text-xs text-amber-200/90 pl-3 leading-relaxed">
+                    {r.description}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-xs sm:text-sm text-amber-200 whitespace-pre-line leading-relaxed">
+              {mod.restrictions}
+            </div>
+          )}
         </div>
       )}
 
