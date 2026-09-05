@@ -3,33 +3,43 @@ import { redirect } from 'next/navigation';
 import type { Profile } from '@/types/database';
 
 export async function getCurrentUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
 
-  if (error || !user) {
+    if (error || !user) {
+      return null;
+    }
+    return user;
+  } catch (err) {
+    console.error('getCurrentUser error:', err);
     return null;
   }
-  return user;
 }
 
 export async function getCurrentProfile(): Promise<Profile | null> {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  try {
+    const user = await getCurrentUser();
+    if (!user) return null;
 
-  const supabase = await createClient();
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single();
+    const supabase = await createClient();
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
 
-  if (error || !profile) {
+    if (error || !profile) {
+      return null;
+    }
+    return profile as Profile;
+  } catch (err) {
+    console.error('getCurrentProfile error:', err);
     return null;
   }
-  return profile as Profile;
 }
 
 export async function requireAdmin(): Promise<{ user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>; profile: Profile }> {

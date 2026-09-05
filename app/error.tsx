@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, RefreshCw, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 
 export default function GlobalError({
@@ -11,14 +11,15 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [showDetails, setShowDetails] = useState(false);
+
   useEffect(() => {
-    // Secure error logging without exposing stack trace to user
-    console.error('Application error:', error.message);
+    console.error('Global application error:', error);
   }, [error]);
 
   return (
     <div className="flex-1 flex items-center justify-center px-4 py-16">
-      <div className="max-w-md w-full text-center space-y-5 bg-[#14161b] border border-[#232730] p-8 rounded-md">
+      <div className="max-w-lg w-full text-center space-y-5 bg-[#14161b] border border-[#232730] p-8 rounded-md">
         <div className="w-12 h-12 rounded-full bg-rose-950/60 border border-rose-800/80 text-rose-400 flex items-center justify-center mx-auto">
           <AlertTriangle className="w-6 h-6" />
         </div>
@@ -26,9 +27,32 @@ export default function GlobalError({
         <div className="space-y-1.5">
           <h2 className="text-lg font-bold text-white">Ein Fehler ist aufgetreten</h2>
           <p className="text-xs text-zinc-400 leading-relaxed">
-            Die angeforderte Information konnte vorübergehend nicht geladen werden. Bitte versuche es erneut.
+            Die angeforderte Information konnte vorübergehend nicht verarbeitet werden.
           </p>
         </div>
+
+        {error?.message && (
+          <div className="text-left">
+            <button
+              type="button"
+              onClick={() => setShowDetails(!showDetails)}
+              className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200"
+            >
+              <span>Fehlerdetails {showDetails ? 'ausblenden' : 'anzeigen'}</span>
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${showDetails ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {showDetails && (
+              <div className="mt-2 p-3 bg-[#0d0e11] border border-rose-900/50 rounded text-[11px] font-mono text-rose-300 break-all space-y-1">
+                <p>{error.message}</p>
+                {error.digest && (
+                  <p className="text-zinc-400 text-[10px]">Digest: {error.digest}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="pt-2 flex items-center justify-center gap-3">
           <button

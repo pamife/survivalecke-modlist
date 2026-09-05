@@ -8,16 +8,25 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminLoginPage() {
-  const supabase = await createClient();
+  let hasAnyAdmin = false;
 
-  // Check if any admin exists in the database
-  const { count } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'admin');
+  try {
+    const supabase = await createClient();
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'admin');
 
-  const hasAnyAdmin = (count ?? 0) > 0;
+    if (!error && count !== null) {
+      hasAnyAdmin = count > 0;
+    }
+  } catch (err) {
+    console.error('Error fetching admin count in AdminLoginPage:', err);
+    hasAnyAdmin = false;
+  }
 
   return (
     <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center px-4 py-12">
