@@ -3,13 +3,12 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
-import { formatDate, isValidExternalUrl } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import {
   ArrowLeft,
   Calendar,
   Layers,
   Cpu,
-  ExternalLink,
   ShieldAlert,
   FileText,
   CheckCircle2,
@@ -143,37 +142,6 @@ export default async function ModDetailPage({ params }: PageProps) {
 
           <StatusBadge status={mod.status} size="lg" />
         </div>
-
-        {/* Platform Direct Badges */}
-        {(isValidExternalUrl(mod.modrinth_url) || isValidExternalUrl(mod.curseforge_url)) && (
-          <div className="flex flex-wrap gap-2 pt-2">
-            {isValidExternalUrl(mod.modrinth_url) && (
-              <a
-                href={mod.modrinth_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#101216] hover:bg-[#181b22] border border-[#262b35] hover:border-emerald-700/60 text-xs text-zinc-300 hover:text-emerald-300 transition-colors"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span>Verfügbar auf Modrinth</span>
-                <ExternalLink className="w-3 h-3 text-zinc-500" />
-              </a>
-            )}
-
-            {isValidExternalUrl(mod.curseforge_url) && (
-              <a
-                href={mod.curseforge_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-[#101216] hover:bg-[#181b22] border border-[#262b35] hover:border-amber-700/60 text-xs text-zinc-300 hover:text-amber-300 transition-colors"
-              >
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                <span>Verfügbar auf CurseForge</span>
-                <ExternalLink className="w-3 h-3 text-zinc-500" />
-              </a>
-            )}
-          </div>
-        )}
 
         {mod.description && (
           <p className="text-xs sm:text-sm text-zinc-300 border-t border-[#1f232c] pt-4">
@@ -331,67 +299,6 @@ export default async function ModDetailPage({ params }: PageProps) {
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* External Links */}
-      {(isValidExternalUrl(mod.modrinth_url) ||
-        isValidExternalUrl(mod.curseforge_url) ||
-        isValidExternalUrl(mod.source_url) ||
-        isValidExternalUrl(mod.website_url)) && (
-        <div className="bg-[#14161b] border border-[#232730] rounded-md p-6 space-y-3">
-          <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-            Externe Links
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {isValidExternalUrl(mod.modrinth_url) && (
-              <a
-                href={mod.modrinth_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1d24] hover:bg-[#22252e] border border-[#2b303c] rounded text-xs text-zinc-200 hover:text-white transition-colors"
-              >
-                <span>Modrinth</span>
-                <ExternalLink className="w-3 h-3 text-zinc-400" />
-              </a>
-            )}
-
-            {isValidExternalUrl(mod.curseforge_url) && (
-              <a
-                href={mod.curseforge_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1d24] hover:bg-[#22252e] border border-[#2b303c] rounded text-xs text-zinc-200 hover:text-white transition-colors"
-              >
-                <span>CurseForge</span>
-                <ExternalLink className="w-3 h-3 text-zinc-400" />
-              </a>
-            )}
-
-            {isValidExternalUrl(mod.source_url) && (
-              <a
-                href={mod.source_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1d24] hover:bg-[#22252e] border border-[#2b303c] rounded text-xs text-zinc-200 hover:text-white transition-colors"
-              >
-                <span>Quellcode (GitHub / GitLab)</span>
-                <ExternalLink className="w-3 h-3 text-zinc-400" />
-              </a>
-            )}
-
-            {isValidExternalUrl(mod.website_url) && (
-              <a
-                href={mod.website_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1a1d24] hover:bg-[#22252e] border border-[#2b303c] rounded text-xs text-zinc-200 hover:text-white transition-colors"
-              >
-                <span>Offizielle Website</span>
-                <ExternalLink className="w-3 h-3 text-zinc-400" />
-              </a>
-            )}
           </div>
         </div>
       )}

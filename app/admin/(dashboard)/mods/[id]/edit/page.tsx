@@ -68,6 +68,7 @@ export default async function AdminEditModPage({ params }: PageProps) {
             modId={mod.id}
             source={mod.source}
             lastSyncedAt={mod.last_synced_at}
+            latestExternalVersion={mod.latest_external_version}
           />
         )}
       </div>

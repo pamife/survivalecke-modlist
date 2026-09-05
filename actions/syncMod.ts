@@ -6,16 +6,26 @@ import { logAuditEvent } from '@/lib/audit';
 import { revalidatePath } from 'next/cache';
 import { processMinecraftVersions } from '@/lib/minecraft';
 import type { Mod } from '@/types/database';
+import {
+  getModrinthProject,
+  getModrinthProjectVersions,
+  type ModrinthVersion,
+} from '@/lib/modrinth';
 
-export async function syncModExternalData(modId: string): Promise<{
+export interface SyncResult {
   success: boolean;
   message?: string;
   error?: string;
-}> {
+  newVersionsCount?: number;
+  latestVersion?: string;
+  hasNewVersionAlert?: boolean;
+}
+
+export async function syncModExternalData(modId: string): Promise<SyncResult> {
   await requireAdmin();
   const supabase = await createClient();
 
-  // Fetch current mod from database
+  // 1. Fetch current mod from database
   const { data: modData, error: fetchErr } = await supabase
     .from('mods')
     .select('*')
@@ -28,34 +38,26 @@ export async function syncModExternalData(modId: string): Promise<{
 
   const mod = modData as unknown as Mod;
 
-  if (mod.source === 'manual' || !mod.source_project_id) {
+  if (mod.source === 'manual' || (!mod.source_project_id && !mod.modrinth_id)) {
     return {
       success: false,
       error: 'Dieser Mod wurde manuell ohne externe Verknüpfung angelegt.',
     };
   }
 
-  // Handle Modrinth Sync
+  const projectId = mod.modrinth_id || mod.source_project_id!;
+
+  // 2. Handle Modrinth Sync
   if (mod.source === 'modrinth') {
     try {
-      const res = await fetch(
-        `https://api.modrinth.com/v2/project/${encodeURIComponent(mod.source_project_id)}`,
-        {
-          headers: {
-            'User-Agent': 'Survivalecke-Modlist/1.0 (admin@survivalecke.de)',
-          },
-          signal: AbortSignal.timeout(8000),
-        }
-      );
+      const { project, error: projectError } = await getModrinthProject(projectId);
 
-      if (!res.ok) {
+      if (!project) {
         return {
           success: false,
-          error: 'Modrinth konnte nicht erreicht werden oder der Mod wurde entfernt.',
+          error: projectError || 'Modrinth konnte nicht erreicht werden oder der Mod wurde entfernt.',
         };
       }
-
-      const project = await res.json();
 
       const loaders = Array.from(
         new Set(
@@ -65,50 +67,63 @@ export async function syncModExternalData(modId: string): Promise<{
         )
       ) as string[];
 
-      // Fetch versions
-      const versionsRes = await fetch(
-        `https://api.modrinth.com/v2/project/${encodeURIComponent(project.id)}/version`,
-        {
-          headers: {
-            'User-Agent': 'Survivalecke-Modlist/1.0 (admin@survivalecke.de)',
-          },
-          signal: AbortSignal.timeout(8000),
-        }
-      );
+      // 3. Fetch Versions from Modrinth
+      const { versions: rawVersions, error: versionsError } = await getModrinthProjectVersions(project.id, 35);
 
       let newVersionsCount = 0;
-      if (versionsRes.ok) {
-        const rawVersions = await versionsRes.json();
-        if (Array.isArray(rawVersions)) {
-          // Fetch existing versions for this mod
-          const { data: existingVersions } = await supabase
-            .from('mod_versions')
-            .select('source_version_id, mod_version')
-            .eq('mod_id', mod.id);
+      let latestVersionString: string | null = null;
 
-          const existingIds = new Set(
-            (existingVersions || []).map((v) => v.source_version_id || v.mod_version)
-          );
+      if (rawVersions && rawVersions.length > 0) {
+        latestVersionString = rawVersions[0]?.version_number || null;
 
-          for (const v of rawVersions.slice(0, 30)) {
-            if (!existingIds.has(v.id) && !existingIds.has(v.version_number)) {
-              await supabase.from('mod_versions').insert({
-                mod_id: mod.id,
-                mod_version: v.version_number,
-                minecraft_version: v.game_versions?.[0] || 'Unbekannt',
-                loader: (v.loaders?.[0] || 'Fabric').charAt(0).toUpperCase() + (v.loaders?.[0] || 'Fabric').slice(1),
-                status: 'allowed', // or inherited
-                source_version_id: v.id,
-                published_at: v.date_published,
-              });
-              newVersionsCount++;
-            }
+        // Fetch existing versions in Survivalecke DB
+        const { data: existingVersions } = await supabase
+          .from('mod_versions')
+          .select('source_version_id, mod_version, status')
+          .eq('mod_id', mod.id);
+
+        const existingIds = new Set<string>();
+        const existingVersionNumbers = new Set<string>();
+
+        (existingVersions || []).forEach((v) => {
+          if (v.source_version_id) existingIds.add(v.source_version_id);
+          if (v.mod_version) existingVersionNumbers.add(v.mod_version);
+        });
+
+        // Insert new versions with STRICT 'unknown' status
+        for (const v of rawVersions) {
+          const alreadyExists = existingIds.has(v.id) || existingVersionNumbers.has(v.version_number);
+
+          if (!alreadyExists) {
+            await supabase.from('mod_versions').insert({
+              mod_id: mod.id,
+              mod_version: v.version_number,
+              minecraft_version: v.game_versions?.[0] || 'Unbekannt',
+              loader: (v.loaders?.[0] || 'Fabric').charAt(0).toUpperCase() + (v.loaders?.[0] || 'Fabric').slice(1),
+              // CRITICAL: Newly discovered versions MUST start as 'unknown'
+              status: 'unknown',
+              note: null,
+              source_version_id: v.id,
+              published_at: v.date_published,
+              release_type: v.version_type || 'release',
+              changelog: v.changelog || null,
+              files_metadata: v.files && v.files.length > 0 ? (v.files as any) : null,
+            });
+            newVersionsCount++;
           }
         }
       }
 
-      // Update external metadata ONLY - NEVER overwrite status, reason, or restrictions
+      // 4. Update external metadata ONLY - NEVER overwrite status, reason, or restrictions
       const now = new Date().toISOString();
+      const updatedMetadata = {
+        team: project.team,
+        license: project.license?.name || null,
+        client_side: project.client_side,
+        server_side: project.server_side,
+        updated: project.updated,
+      };
+
       const { error: updateErr } = await supabase
         .from('mods')
         .update({
@@ -119,6 +134,8 @@ export async function syncModExternalData(modId: string): Promise<{
           minecraft_versions: processMinecraftVersions(project.game_versions || []).primary,
           website_url: project.issues_url || project.wiki_url || mod.website_url,
           source_url: project.source_url || mod.source_url,
+          modrinth_metadata: updatedMetadata,
+          latest_external_version: latestVersionString,
           last_synced_at: now,
           updated_at: now,
         })
@@ -128,6 +145,7 @@ export async function syncModExternalData(modId: string): Promise<{
         return { success: false, error: updateErr.message };
       }
 
+      // 5. Audit Log Entry
       await logAuditEvent({
         action: 'SYNC_EXTERNAL_DATA',
         entityType: 'mod',
@@ -135,10 +153,13 @@ export async function syncModExternalData(modId: string): Promise<{
         entityName: mod.name,
         newValues: {
           last_synced_at: now,
-          new_versions_added: newVersionsCount,
+          new_versions_discovered: newVersionsCount,
+          latest_version: latestVersionString,
+          survivalecke_rules_preserved: true,
         },
       });
 
+      // 6. Revalidate cache
       revalidatePath('/');
       revalidatePath('/mods');
       revalidatePath(`/mods/${mod.slug}`);
@@ -146,11 +167,20 @@ export async function syncModExternalData(modId: string): Promise<{
       revalidatePath('/admin/mods');
       revalidatePath(`/admin/mods/${mod.id}/edit`);
 
+      const message =
+        newVersionsCount > 0
+          ? `Erfolgreich mit Modrinth synchronisiert! ${newVersionsCount} neue Version(en) gefunden (Status: Ungeprüft).`
+          : 'Erfolgreich synchronisiert. Keine neuen Modrinth-Versionen vorhanden.';
+
       return {
         success: true,
-        message: `Erfolgreich synchronisiert. ${newVersionsCount} neue Version(en) gefunden.`,
+        message,
+        newVersionsCount,
+        latestVersion: latestVersionString || undefined,
+        hasNewVersionAlert: newVersionsCount > 0,
       };
     } catch (err: unknown) {
+      console.error('syncModExternalData error:', err);
       return {
         success: false,
         error:
@@ -161,17 +191,5 @@ export async function syncModExternalData(modId: string): Promise<{
     }
   }
 
-  // Handle CurseForge Sync
-  if (mod.source === 'curseforge') {
-    const cfApiKey = process.env.CURSEFORGE_API_KEY;
-    if (!cfApiKey) {
-      return {
-        success: false,
-        error: 'CurseForge-Integration ist nicht konfiguriert (CURSEFORGE_API_KEY fehlt).',
-      };
-    }
-    // Future expansion for CF
-  }
-
-  return { success: false, error: 'Unbekannte Quelle.' };
+  return { success: false, error: 'Nicht unterstützte Synchronisierungsquelle.' };
 }

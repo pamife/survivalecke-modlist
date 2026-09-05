@@ -4,6 +4,24 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth';
 import { processMinecraftVersions } from '@/lib/minecraft';
 import type { ModSource } from '@/types/database';
+import {
+  extractModrinthIdentifier,
+  getModrinthProject,
+  getModrinthProjectVersions,
+  searchModrinthProjects,
+  type ModrinthSearchHit,
+  type ModrinthVersion,
+} from '@/lib/modrinth';
+
+export interface ExternalModFile {
+  filename: string;
+  size: number;
+  hashes: {
+    sha1?: string;
+    sha512?: string;
+  };
+  url: string;
+}
 
 export interface ExternalModVersion {
   id: string;
@@ -11,12 +29,17 @@ export interface ExternalModVersion {
   name: string;
   game_versions: string[];
   loaders: string[];
+  version_type: 'release' | 'beta' | 'alpha';
   date_published: string;
+  changelog: string | null;
+  files: ExternalModFile[];
 }
 
 export interface ImportedModData {
   source: ModSource;
   source_project_id: string;
+  modrinth_id: string | null;
+  curseforge_id: string | null;
   name: string;
   slug: string;
   mod_id: string;
@@ -29,7 +52,30 @@ export interface ImportedModData {
   source_url: string | null;
   modrinth_url: string | null;
   curseforge_url: string | null;
+  modrinth_metadata: Record<string, unknown> | null;
   versions: ExternalModVersion[];
+}
+
+export interface SearchResultItem {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  icon_url: string | null;
+  author: string;
+  source: ModSource | 'local';
+  loaders: string[];
+  game_versions: string[];
+  downloads?: number;
+  isExisting?: boolean;
+  existingId?: string;
+}
+
+export interface SearchExternalResult {
+  success: boolean;
+  error?: string;
+  isDirectUrl?: boolean;
+  results: SearchResultItem[];
 }
 
 export interface ImportResult {
@@ -75,315 +121,225 @@ function mapToStandardCategory(categories: string[]): string {
       return mapping[lower];
     }
   }
-  return 'Other';
+  return 'Allgemein';
 }
 
-// SSRF Safe URL Validator
-function validateAndParseExternalUrl(rawUrl: string): {
-  platform: 'modrinth' | 'curseforge' | 'unknown';
-  identifier: string;
-} | null {
-  try {
-    const parsed = new URL(rawUrl.trim());
+/**
+ * Multi-stage search across:
+ * 1. Local Survivalecke Database (flags duplicates)
+ * 2. Modrinth API (primary source)
+ * 3. CurseForge (if configured / recognized URL)
+ */
+export async function searchExternalMods(rawQuery: string): Promise<SearchExternalResult> {
+  await requireAdmin();
 
-    // Only HTTPS
-    if (parsed.protocol !== 'https:') {
-      return null;
-    }
-
-    // Disallow custom ports
-    if (parsed.port && parsed.port !== '443') {
-      return null;
-    }
-
-    const hostname = parsed.hostname.toLowerCase();
-
-    // Check Modrinth
-    if (hostname === 'modrinth.com' || hostname === 'www.modrinth.com') {
-      // Examples: /mod/sodium, /mod/sodium/versions, /mod/AANobbMI
-      const match = parsed.pathname.match(/^\/mod\/([a-zA-Z0-9_-]+)/i);
-      if (match && match[1]) {
-        return { platform: 'modrinth', identifier: match[1] };
-      }
-    }
-
-    // Check CurseForge
-    if (hostname === 'curseforge.com' || hostname === 'www.curseforge.com') {
-      // Example: /minecraft/mc-mods/sodium
-      const match = parsed.pathname.match(/^\/minecraft\/mc-mods\/([a-zA-Z0-9_-]+)/i);
-      if (match && match[1]) {
-        return { platform: 'curseforge', identifier: match[1] };
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
+  const query = rawQuery.trim();
+  if (!query) {
+    return { success: false, error: 'Bitte einen Suchbegriff oder eine URL eingeben.', results: [] };
   }
+
+  const supabase = await createClient();
+
+  // 1. Check if input is a direct Modrinth URL
+  const directModrinthId = extractModrinthIdentifier(query);
+  if (directModrinthId && (query.includes('modrinth.com') || query.includes('/mod/'))) {
+    const { project, error } = await getModrinthProject(directModrinthId);
+    if (project) {
+      // Check if already in DB
+      const { data: existing } = await supabase
+        .from('mods')
+        .select('id, name, slug')
+        .or(`modrinth_id.eq.${project.id},source_project_id.eq.${project.id},slug.eq.${project.slug}`)
+        .maybeSingle();
+
+      return {
+        success: true,
+        isDirectUrl: true,
+        results: [
+          {
+            id: project.id,
+            slug: project.slug,
+            title: project.title,
+            description: project.description || '',
+            icon_url: project.icon_url,
+            author: project.team || 'Modrinth',
+            source: 'modrinth',
+            loaders: (project.loaders || []).map((l: string) => l.charAt(0).toUpperCase() + l.slice(1)),
+            game_versions: project.game_versions || [],
+            isExisting: Boolean(existing),
+            existingId: existing?.id,
+          },
+        ],
+      };
+    }
+    if (error) {
+      return { success: false, error, results: [] };
+    }
+  }
+
+  // 2. Stage 1: Search local DB first
+  const { data: localMatches } = await supabase
+    .from('mods')
+    .select('id, name, slug, description, icon_url, loaders, minecraft_versions, source')
+    .or(`name.ilike.%${query}%,slug.ilike.%${query}%`)
+    .limit(4);
+
+  const existingIds = new Set<string>();
+  const localResults: SearchResultItem[] = (localMatches || []).map((m) => {
+    existingIds.add(m.slug.toLowerCase());
+    return {
+      id: m.id,
+      slug: m.slug,
+      title: m.name,
+      description: m.description || '',
+      icon_url: m.icon_url,
+      author: 'Survivalecke DB',
+      source: 'local',
+      loaders: m.loaders || [],
+      game_versions: m.minecraft_versions || [],
+      isExisting: true,
+      existingId: m.id,
+    };
+  });
+
+  // 3. Stage 2: Search Modrinth API
+  const { hits: modrinthHits, error: searchError } = await searchModrinthProjects(query, 8);
+
+  const modrinthResults: SearchResultItem[] = [];
+
+  for (const hit of modrinthHits) {
+    const isAlreadyLocal = existingIds.has(hit.slug.toLowerCase());
+    modrinthResults.push({
+      id: hit.project_id,
+      slug: hit.slug,
+      title: hit.title,
+      description: hit.description,
+      icon_url: hit.icon_url,
+      author: hit.author,
+      source: 'modrinth',
+      loaders: hit.loaders,
+      game_versions: hit.game_versions,
+      downloads: hit.downloads,
+      isExisting: isAlreadyLocal,
+    });
+  }
+
+  const combined = [...localResults, ...modrinthResults];
+
+  if (combined.length === 0 && searchError) {
+    return { success: false, error: searchError, results: [] };
+  }
+
+  return {
+    success: true,
+    isDirectUrl: false,
+    results: combined,
+  };
 }
 
+/**
+ * Fetches full project details and version list from Modrinth or supported external platform.
+ * NEVER sets status to allowed.
+ */
 export async function fetchExternalMod(rawInput: string): Promise<ImportResult> {
   await requireAdmin();
 
   const trimmed = rawInput.trim();
   if (!trimmed) {
-    return { success: false, error: 'Bitte gib einen Modrinth- oder CurseForge-Link ein.' };
+    return { success: false, error: 'Bitte gib einen Modrinth-Link oder Mod-Namen ein.' };
   }
 
-  const parsedUrl = validateAndParseExternalUrl(trimmed);
-  let platform: 'modrinth' | 'curseforge' = 'modrinth';
-  let identifier = trimmed;
+  const identifier = extractModrinthIdentifier(trimmed) || trimmed;
+  const supabase = await createClient();
 
-  if (parsedUrl) {
-    platform = parsedUrl.platform as 'modrinth' | 'curseforge';
-    identifier = parsedUrl.identifier;
-  } else {
-    // If it's not a full URL, check if it looks like a direct slug / ID for fallback
-    if (/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
-      platform = 'modrinth'; // default manual fallback
-      identifier = trimmed;
-    } else {
-      return {
-        success: false,
-        error:
-          'Der Link konnte nicht als unterstützter Mod erkannt werden. Bitte nutze einen Link von modrinth.com oder curseforge.com.',
-      };
-    }
-  }
-
-  // Handle CurseForge
-  if (platform === 'curseforge') {
-    const cfApiKey = process.env.CURSEFORGE_API_KEY;
-    if (!cfApiKey) {
-      return {
-        success: false,
-        error:
-          'CurseForge kann derzeit nicht automatisch geladen werden. Die CurseForge-Integration ist nicht konfiguriert.',
-      };
-    }
-
-    try {
-      const cfRes = await fetch(
-        `https://api.curseforge.com/v1/mods/search?gameId=432&slug=${encodeURIComponent(identifier)}`,
-        {
-          headers: {
-            'x-api-key': cfApiKey,
-            Accept: 'application/json',
-          },
-          signal: AbortSignal.timeout(8000),
-        }
-      );
-
-      if (!cfRes.ok) {
-        return {
-          success: false,
-          error: 'CurseForge API konnte nicht erreicht werden. Bitte versuche es später erneut.',
-        };
-      }
-
-      const cfJson = await cfRes.json();
-      const mod = cfJson.data?.[0];
-      if (!mod) {
-        return {
-          success: false,
-          error: 'Dieser Mod wurde auf CurseForge nicht gefunden.',
-        };
-      }
-
-      // Check for duplicate in DB
-      const supabase = await createClient();
-      const { data: existing } = await supabase
-        .from('mods')
-        .select('id, name, slug')
-        .or(`curseforge_id.eq.${mod.id},slug.eq.${mod.slug}`)
-        .maybeSingle();
-
-      if (existing) {
-        return {
-          success: false,
-          duplicate: true,
-          existingMod: existing,
-          error: 'Dieser Mod befindet sich bereits in der Datenbank.',
-        };
-      }
-
-      const loaders = Array.from(
-        new Set(
-          (mod.latestFilesIndexes || [])
-            .map((f: { modLoader?: number }) => {
-              if (f.modLoader === 4) return 'Fabric';
-              if (f.modLoader === 1) return 'Forge';
-              if (f.modLoader === 5) return 'Quilt';
-              if (f.modLoader === 6) return 'NeoForge';
-              return null;
-            })
-            .filter(Boolean)
-        )
-      ) as string[];
-
-      const mcVersions = Array.from(
-        new Set(
-          (mod.latestFilesIndexes || [])
-            .map((f: { gameVersion?: string }) => f.gameVersion)
-            .filter((v: string) => v && /^[0-9]+\.[0-9]+(\.[0-9]+)?$/.test(v))
-        )
-      ).sort().reverse() as string[];
-
-      return {
-        success: true,
-        data: {
-          source: 'curseforge',
-          source_project_id: String(mod.id),
-          name: mod.name,
-          slug: mod.slug,
-          mod_id: mod.slug,
-          description: mod.summary || '',
-          icon_url: mod.logo?.thumbnailUrl || null,
-          category: mapToStandardCategory(mod.categories?.map((c: { name: string }) => c.name) || []),
-          loaders: loaders.length > 0 ? loaders : ['Fabric'],
-          minecraft_versions: mcVersions,
-          website_url: mod.links?.websiteUrl || null,
-          source_url: mod.links?.sourceUrl || null,
-          modrinth_url: null,
-          curseforge_url: `https://www.curseforge.com/minecraft/mc-mods/${mod.slug}`,
-          versions: (mod.latestFiles || []).map((f: { id: number; displayName: string; fileName: string; fileDate: string; gameVersions: string[] }) => ({
-            id: String(f.id),
-            version_number: f.displayName || f.fileName,
-            name: f.displayName || f.fileName,
-            game_versions: f.gameVersions?.filter((v) => /^[0-9]+\.[0-9]+/.test(v)) || [],
-            loaders: loaders,
-            date_published: f.fileDate,
-          })),
-        },
-      };
-    } catch (err: unknown) {
-      return {
-        success: false,
-        error:
-          err instanceof Error && err.name === 'TimeoutError'
-            ? 'Zeitüberschreitung bei der Anfrage an CurseForge.'
-            : 'CurseForge konnte nicht erreicht werden. Bitte versuche es später erneut.',
-      };
-    }
-  }
-
-  // Handle Modrinth
-  try {
-    const projectRes = await fetch(
-      `https://api.modrinth.com/v2/project/${encodeURIComponent(identifier)}`,
-      {
-        headers: {
-          'User-Agent': 'Survivalecke-Modlist/1.0 (admin@survivalecke.de)',
-        },
-        signal: AbortSignal.timeout(8000),
-      }
-    );
-
-    if (projectRes.status === 404) {
-      return {
-        success: false,
-        error: 'Dieser Mod wurde auf Modrinth nicht gefunden.',
-      };
-    }
-
-    if (!projectRes.ok) {
-      return {
-        success: false,
-        error: 'Modrinth konnte nicht erreicht werden. Bitte versuche es später erneut.',
-      };
-    }
-
-    const project = await projectRes.json();
-
-    // Check for duplicate in Supabase
-    const supabase = await createClient();
-    const { data: existing } = await supabase
-      .from('mods')
-      .select('id, name, slug')
-      .or(`modrinth_id.eq.${project.id},source_project_id.eq.${project.id},slug.eq.${project.slug}`)
-      .maybeSingle();
-
-    if (existing) {
-      return {
-        success: false,
-        duplicate: true,
-        existingMod: existing,
-        error: 'Dieser Mod befindet sich bereits in der Datenbank.',
-      };
-    }
-
-    // Fetch versions list
-    let versionsList: ExternalModVersion[] = [];
-    try {
-      const versionsRes = await fetch(
-        `https://api.modrinth.com/v2/project/${encodeURIComponent(project.id)}/version`,
-        {
-          headers: {
-            'User-Agent': 'Survivalecke-Modlist/1.0 (admin@survivalecke.de)',
-          },
-          signal: AbortSignal.timeout(8000),
-        }
-      );
-
-      if (versionsRes.ok) {
-        const rawVersions = await versionsRes.json();
-        if (Array.isArray(rawVersions)) {
-          versionsList = rawVersions.slice(0, 30).map((v) => ({
-            id: v.id,
-            version_number: v.version_number,
-            name: v.name || v.version_number,
-            game_versions: v.game_versions || [],
-            loaders: (v.loaders || []).map(
-              (l: string) => l.charAt(0).toUpperCase() + l.slice(1)
-            ),
-            date_published: v.date_published,
-          }));
-        }
-      }
-    } catch {
-      // Versions are optional enhancement; do not fail overall import
-    }
-
-    const loaders = Array.from(
-      new Set(
-        (project.loaders || []).map(
-          (l: string) => l.charAt(0).toUpperCase() + l.slice(1)
-        )
-      )
-    ) as string[];
-
-    const categories = [
-      ...(project.categories || []),
-      ...(project.additional_categories || []),
-    ];
-
-    return {
-      success: true,
-      data: {
-        source: 'modrinth',
-        source_project_id: project.id,
-        name: project.title,
-        slug: project.slug,
-        mod_id: project.slug,
-        description: project.description || '',
-        icon_url: project.icon_url || null,
-        category: mapToStandardCategory(categories),
-        loaders: loaders.length > 0 ? loaders : ['Fabric'],
-        minecraft_versions: processMinecraftVersions(project.game_versions || []).primary,
-        website_url: project.issues_url || project.wiki_url || null,
-        source_url: project.source_url || null,
-        modrinth_url: `https://modrinth.com/mod/${project.slug}`,
-        curseforge_url: null,
-        versions: versionsList,
-      },
-    };
-  } catch (err: unknown) {
+  // 1. Fetch Modrinth Project
+  const { project, error: projectError } = await getModrinthProject(identifier);
+  if (!project) {
     return {
       success: false,
-      error:
-        err instanceof Error && err.name === 'TimeoutError'
-          ? 'Zeitüberschreitung bei der Anfrage an Modrinth.'
-          : 'Modrinth konnte nicht erreicht werden. Bitte versuche es später erneut.',
+      error: projectError || `Mod "${identifier}" wurde auf Modrinth nicht gefunden.`,
     };
   }
+
+  // 2. Duplicate Detection in Supabase
+  const { data: existing } = await supabase
+    .from('mods')
+    .select('id, name, slug')
+    .or(`modrinth_id.eq.${project.id},source_project_id.eq.${project.id},slug.eq.${project.slug}`)
+    .maybeSingle();
+
+  if (existing) {
+    return {
+      success: false,
+      duplicate: true,
+      existingMod: existing,
+      error: `Der Mod "${project.title}" befindet sich bereits in der Datenbank.`,
+    };
+  }
+
+  // 3. Fetch Versions with full metadata & changelogs
+  let versionsList: ExternalModVersion[] = [];
+  const { versions: rawVersions } = await getModrinthProjectVersions(project.id, 35);
+
+  if (rawVersions && rawVersions.length > 0) {
+    versionsList = rawVersions.map((v: ModrinthVersion) => ({
+      id: v.id,
+      version_number: v.version_number,
+      name: v.name || v.version_number,
+      game_versions: v.game_versions || [],
+      loaders: v.loaders || [],
+      version_type: v.version_type || 'release',
+      date_published: v.date_published,
+      changelog: v.changelog || null,
+      files: (v.files || []).map((f) => ({
+        filename: f.filename,
+        size: f.size,
+        hashes: f.hashes || {},
+        url: f.url,
+      })),
+    }));
+  }
+
+  const loaders = Array.from(
+    new Set(
+      (project.loaders || []).map(
+        (l: string) => l.charAt(0).toUpperCase() + l.slice(1)
+      )
+    )
+  ) as string[];
+
+  const categories = [
+    ...(project.categories || []),
+    ...(project.additional_categories || []),
+  ];
+
+  return {
+    success: true,
+    data: {
+      source: 'modrinth',
+      source_project_id: project.id,
+      modrinth_id: project.id,
+      curseforge_id: null,
+      name: project.title,
+      slug: project.slug,
+      mod_id: project.slug,
+      description: project.description || '',
+      icon_url: project.icon_url || null,
+      category: mapToStandardCategory(categories),
+      loaders: loaders.length > 0 ? loaders : ['Fabric'],
+      minecraft_versions: processMinecraftVersions(project.game_versions || []).primary,
+      website_url: project.issues_url || project.wiki_url || null,
+      source_url: project.source_url || null,
+      modrinth_url: `https://modrinth.com/mod/${project.slug}`,
+      curseforge_url: null,
+      modrinth_metadata: {
+        team: project.team,
+        license: project.license?.name || null,
+        client_side: project.client_side,
+        server_side: project.server_side,
+        updated: project.updated,
+      },
+      versions: versionsList,
+    },
+  };
 }

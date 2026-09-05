@@ -2,8 +2,9 @@
 
 import React, { useState, useActionState } from 'react';
 import { createMod, updateMod, type ModActionResult } from '@/actions/adminMods';
-import { ModImportBar } from '@/components/ModImportBar';
+import { ModImportSearch } from '@/components/ModImportSearch';
 import { StatusBadge } from '@/components/StatusBadge';
+import { VersionChangelogModal } from '@/components/VersionChangelogModal';
 import { useRouter } from 'next/navigation';
 import {
   Save,
@@ -17,6 +18,8 @@ import {
   ExternalLink,
   ShieldAlert,
   FileText,
+  Check,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Mod, ModStatus, ModSource, ModRestriction, ModVersion } from '@/types/database';
@@ -40,10 +43,13 @@ interface ConfigurableVersionItem {
   mod_version: string;
   minecraft_version: string;
   loader: string;
-  status: 'allowed' | 'restricted' | 'blocked';
+  status: 'allowed' | 'restricted' | 'blocked' | 'unknown';
   note: string;
   source_version_id?: string;
   published_at?: string;
+  release_type?: string;
+  changelog?: string;
+  files_metadata?: any;
 }
 
 const initialResult: ModActionResult = {};
@@ -153,19 +159,41 @@ export function AdminModForm({
         mod_version: v.mod_version,
         minecraft_version: v.minecraft_version,
         loader: v.loader,
-        status: v.status as 'allowed' | 'restricted' | 'blocked',
+        status: (v.status as 'allowed' | 'restricted' | 'blocked' | 'unknown') || 'unknown',
         note: v.note || '',
         source_version_id: v.source_version_id || undefined,
         published_at: v.published_at || undefined,
+        release_type: v.release_type || 'release',
+        changelog: v.changelog || undefined,
+        files_metadata: v.files_metadata || undefined,
       }));
     }
     return [];
   });
 
+  // State for Changelog Modal
+  const [activeChangelogVersion, setActiveChangelogVersion] = useState<ConfigurableVersionItem | null>(null);
+
   // Preview Mode
   const [showPreview, setShowPreview] = useState(false);
 
-  // Handle successful import from ModImportBar
+  const setAllVersionsStatus = (targetStatus: 'allowed' | 'restricted' | 'blocked' | 'unknown') => {
+    setVersionsConfig((prev) => prev.map((v) => ({ ...v, status: targetStatus })));
+  };
+
+  const handleApplyAiRestrictions = (suggested: Array<{ title: string; description: string }>) => {
+    const newItems: StructuredRestrictionItem[] = suggested.map((s, idx) => ({
+      id: `ai-${Date.now()}-${idx}`,
+      title: s.title,
+      description: s.description,
+    }));
+    setRestrictionsList((prev) => [...prev, ...newItems]);
+    if (status === 'allowed' || status === 'unknown') {
+      setStatus('restricted');
+    }
+  };
+
+  // Handle successful import from ModImportSearch
   const handleImportSuccess = (imported: ImportedModData) => {
     setName(imported.name);
     setSlug(imported.slug);
@@ -187,19 +215,24 @@ export function AdminModForm({
     setReason('');
     setRestrictionsList([]);
 
-    // Populate configurable versions from import
+    // Populate configurable versions from import with neutral 'unknown' status
     if (imported.versions && imported.versions.length > 0) {
-      const mapped = imported.versions.slice(0, 20).map((v: ExternalModVersion) => ({
+      const mapped = imported.versions.slice(0, 35).map((v: ExternalModVersion) => ({
         id: v.id,
         mod_version: v.version_number,
         minecraft_version: v.game_versions?.[0] || '1.21.1',
         loader: (v.loaders?.[0] || 'Fabric').charAt(0).toUpperCase() + (v.loaders?.[0] || 'Fabric').slice(1),
-        status: 'allowed' as const,
+        // HARD RULE: New external versions start as unknown/unreviewed
+        status: 'unknown' as const,
         note: '',
         source_version_id: v.id,
         published_at: v.date_published,
+        release_type: v.version_type || 'release',
+        changelog: v.changelog || undefined,
+        files_metadata: v.files || undefined,
       }));
       setVersionsConfig(mapped);
+      setVersionMode('custom');
     }
   };
 
@@ -287,7 +320,7 @@ export function AdminModForm({
 
       {/* Automatic Mod Import Box (Only shown when creating new mod) */}
       {!isEditing && (
-        <ModImportBar
+        <ModImportSearch
           onImportSuccess={handleImportSuccess}
           onManualToggle={setShowManualOnly}
           showManualOnly={showManualOnly}
@@ -833,61 +866,127 @@ export function AdminModForm({
 
             {/* Version Config Table */}
             {versionMode === 'custom' && (
-              <div className="border border-[#262b35] rounded overflow-hidden">
+              <div className="space-y-2 border border-[#262b35] rounded bg-[#101216] p-3">
+                {/* Bulk Actions Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#20242e] pb-2">
+                  <span className="text-[11px] font-semibold text-zinc-300">
+                    Modrinth-Versionen ({versionsConfig.length})
+                  </span>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="text-zinc-500">Schnellauswahl:</span>
+                    <button
+                      type="button"
+                      onClick={() => setAllVersionsStatus('allowed')}
+                      className="px-2 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800/80 text-emerald-300 transition-colors cursor-pointer"
+                    >
+                      Alle auf Erlaubt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAllVersionsStatus('unknown')}
+                      className="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition-colors cursor-pointer"
+                    >
+                      Alle auf Ungeprüft
+                    </button>
+                  </div>
+                </div>
+
                 {versionsConfig.length === 0 ? (
-                  <div className="p-4 bg-[#101216] text-xs text-zinc-400 text-center">
-                    Keine importierten Versionen vorhanden. Trage Versionen manuell ein oder nutze den automatischen Mod-Import.
+                  <div className="p-4 text-xs text-zinc-400 text-center">
+                    Keine importierten Versionen vorhanden. Trage Versionen manuell ein oder nutze die automatische Mod-Suche.
                   </div>
                 ) : (
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-72 overflow-y-auto">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-[#101216] sticky top-0 border-b border-[#262b35] text-[11px] text-zinc-400">
+                      <thead className="bg-[#0e1014] sticky top-0 border-b border-[#262b35] text-[11px] text-zinc-400 font-semibold">
                         <tr>
-                          <th className="py-2 px-3">Mod-Version</th>
-                          <th className="py-2 px-3">MC-Version</th>
+                          <th className="py-2 px-3">Version</th>
+                          <th className="py-2 px-3">MC</th>
                           <th className="py-2 px-3">Loader</th>
-                          <th className="py-2 px-3">Status</th>
+                          <th className="py-2 px-3">Typ</th>
+                          <th className="py-2 px-3">Survivalecke Status</th>
+                          <th className="py-2 px-3 text-center">Changelog & KI</th>
                           <th className="py-2 px-3">Hinweis</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#1e222a]">
-                        {versionsConfig.map((ver) => (
-                          <tr key={ver.id} className="hover:bg-[#181b22]">
-                            <td className="py-2 px-3 font-mono font-medium text-zinc-200">
-                              {ver.mod_version}
-                            </td>
-                            <td className="py-2 px-3 text-zinc-300">{ver.minecraft_version}</td>
-                            <td className="py-2 px-3 text-zinc-300">{ver.loader}</td>
-                            <td className="py-2 px-3">
-                              <select
-                                value={ver.status}
-                                onChange={(e) =>
-                                  updateVersionItem(
-                                    ver.id,
-                                    'status',
-                                    e.target.value as 'allowed' | 'restricted' | 'blocked'
-                                  )
-                                }
-                                className="bg-[#101216] border border-[#2b303d] rounded text-[11px] py-1 px-2 text-zinc-200"
-                              >
-                                <option value="allowed">🟢 Erlaubt</option>
-                                <option value="restricted">🟡 Eingeschränkt</option>
-                                <option value="blocked">🔴 Verboten</option>
-                              </select>
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="text"
-                                value={ver.note}
-                                onChange={(e) =>
-                                  updateVersionItem(ver.id, 'note', e.target.value)
-                                }
-                                placeholder="Notiz..."
-                                className="w-full bg-[#101216] border border-[#2b303d] rounded text-[11px] py-1 px-2 text-zinc-200"
-                              />
-                            </td>
-                          </tr>
-                        ))}
+                        {versionsConfig.map((ver) => {
+                          const isRelease = ver.release_type === 'release';
+                          const isBeta = ver.release_type === 'beta';
+
+                          return (
+                            <tr key={ver.id} className="hover:bg-[#181b22] transition-colors">
+                              <td className="py-2 px-3 font-mono font-medium text-zinc-200">
+                                {ver.mod_version}
+                              </td>
+                              <td className="py-2 px-3 text-zinc-300 font-mono text-[11px]">
+                                {ver.minecraft_version}
+                              </td>
+                              <td className="py-2 px-3 text-zinc-300">{ver.loader}</td>
+                              <td className="py-2 px-3">
+                                <span
+                                  className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border ${
+                                    isRelease
+                                      ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
+                                      : isBeta
+                                      ? 'bg-blue-950/40 border-blue-800/60 text-blue-300'
+                                      : 'bg-amber-950/40 border-amber-800/60 text-amber-300'
+                                  }`}
+                                >
+                                  {ver.release_type || 'release'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3">
+                                <select
+                                  value={ver.status}
+                                  onChange={(e) =>
+                                    updateVersionItem(
+                                      ver.id,
+                                      'status',
+                                      e.target.value as 'allowed' | 'restricted' | 'blocked' | 'unknown'
+                                    )
+                                  }
+                                  className={`bg-[#14161b] border rounded text-[11px] py-1 px-2 font-medium cursor-pointer ${
+                                    ver.status === 'allowed'
+                                      ? 'border-emerald-800/80 text-emerald-300'
+                                      : ver.status === 'restricted'
+                                      ? 'border-amber-800/80 text-amber-300'
+                                      : ver.status === 'blocked'
+                                      ? 'border-rose-800/80 text-rose-300'
+                                      : 'border-zinc-700 text-zinc-400'
+                                  }`}
+                                >
+                                  <option value="unknown">⚪ Ungeprüft</option>
+                                  <option value="allowed">🟢 Erlaubt</option>
+                                  <option value="restricted">🟡 Eingeschränkt</option>
+                                  <option value="blocked">🔴 Verboten</option>
+                                </select>
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveChangelogVersion(ver)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                                  title="Changelog einsehen und KI-Sicherheitsanalyse starten"
+                                >
+                                  <FileText className="w-3 h-3 text-emerald-400" />
+                                  <span>Changelog</span>
+                                </button>
+                              </td>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="text"
+                                  value={ver.note}
+                                  onChange={(e) =>
+                                    updateVersionItem(ver.id, 'note', e.target.value)
+                                  }
+                                  placeholder="Notiz..."
+                                  className="w-full bg-[#14161b] border border-[#2b303d] rounded text-[11px] py-1 px-2 text-zinc-200"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1005,6 +1104,20 @@ export function AdminModForm({
           </div>
         </div>
       </form>
+
+      {/* Changelog & AI Analysis Modal */}
+      {activeChangelogVersion && (
+        <VersionChangelogModal
+          isOpen={Boolean(activeChangelogVersion)}
+          onClose={() => setActiveChangelogVersion(null)}
+          modName={name || 'Mod'}
+          versionNumber={activeChangelogVersion.mod_version}
+          releaseType={activeChangelogVersion.release_type}
+          publishedAt={activeChangelogVersion.published_at}
+          changelog={activeChangelogVersion.changelog}
+          onApplySuggestedRestrictions={handleApplyAiRestrictions}
+        />
+      )}
     </div>
   );
 }

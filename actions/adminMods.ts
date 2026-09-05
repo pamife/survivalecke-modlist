@@ -17,10 +17,13 @@ const versionItemSchema = z.object({
   mod_version: z.string().trim().min(1),
   minecraft_version: z.string().trim().default('1.21.1'),
   loader: z.string().trim().default('Fabric'),
-  status: z.enum(['allowed', 'restricted', 'blocked']),
+  status: z.enum(['allowed', 'restricted', 'blocked', 'unknown']).default('unknown'),
   note: z.string().trim().optional(),
   source_version_id: z.string().trim().optional(),
   published_at: z.string().trim().optional(),
+  release_type: z.string().trim().optional(),
+  changelog: z.string().trim().optional(),
+  files_metadata: z.any().optional(),
 });
 
 const modSchema = z
@@ -32,7 +35,9 @@ const modSchema = z
       .min(2)
       .regex(/^[a-z0-9-]+$/, 'Slug darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten.'),
     mod_id: z.string().trim().optional(),
-    source: z.enum(['modrinth', 'curseforge', 'manual']).default('manual'),
+    source: z
+      .enum(['modrinth', 'curseforge', 'github', 'website', 'other', 'manual'])
+      .default('manual'),
     source_project_id: z.string().trim().optional(),
     icon_url: z.string().trim().optional().refine((v) => !v || isValidExternalUrl(v), 'Muss HTTPS-URL sein.'),
     modrinth_id: z.string().trim().optional(),
@@ -166,15 +171,7 @@ export async function createMod(
   }
 
   // Parse structured versions JSON
-  let structuredVersions: Array<{
-    mod_version: string;
-    minecraft_version: string;
-    loader: string;
-    status: 'allowed' | 'restricted' | 'blocked';
-    note?: string;
-    source_version_id?: string;
-    published_at?: string;
-  }> = [];
+  let structuredVersions: Array<z.infer<typeof versionItemSchema>> = [];
   const versionsJson = formData.get('versions_json');
   if (versionsJson && typeof versionsJson === 'string') {
     try {
@@ -183,15 +180,7 @@ export async function createMod(
         structuredVersions = parsed
           .map((v) => versionItemSchema.safeParse(v))
           .filter((res) => res.success)
-          .map((res) => (res as { success: true; data: {
-            mod_version: string;
-            minecraft_version: string;
-            loader: string;
-            status: 'allowed' | 'restricted' | 'blocked';
-            note?: string;
-            source_version_id?: string;
-            published_at?: string;
-          } }).data);
+          .map((res) => (res as { success: true; data: z.infer<typeof versionItemSchema> }).data);
       }
     } catch {
       // ignore
@@ -268,6 +257,9 @@ export async function createMod(
         note: v.note || null,
         source_version_id: v.source_version_id || null,
         published_at: v.published_at || null,
+        release_type: v.release_type || 'release',
+        changelog: v.changelog || null,
+        files_metadata: v.files_metadata || null,
       });
     }
   }
@@ -407,6 +399,54 @@ export async function updateMod(
         mod_id: id,
         title: r.title,
         description: r.description,
+      });
+    }
+  }
+
+  // Parse structured versions JSON
+  let structuredVersions: Array<{
+    mod_version: string;
+    minecraft_version: string;
+    loader: string;
+    status: 'allowed' | 'restricted' | 'blocked' | 'unknown';
+    note?: string;
+    source_version_id?: string;
+    published_at?: string;
+    release_type?: string;
+    changelog?: string;
+    files_metadata?: any;
+  }> = [];
+  const versionsJson = formData.get('versions_json');
+  if (versionsJson && typeof versionsJson === 'string') {
+    try {
+      const parsedV = JSON.parse(versionsJson);
+      if (Array.isArray(parsedV)) {
+        structuredVersions = parsedV
+          .map((v) => versionItemSchema.safeParse(v))
+          .filter((res) => res.success)
+          .map((res) => (res as { success: true; data: any }).data);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Sync mod_versions table if versions submitted
+  if (structuredVersions.length > 0) {
+    await supabase.from('mod_versions').delete().eq('mod_id', id);
+    for (const v of structuredVersions) {
+      await supabase.from('mod_versions').insert({
+        mod_id: id,
+        mod_version: v.mod_version,
+        minecraft_version: v.minecraft_version,
+        loader: v.loader,
+        status: v.status,
+        note: v.note || null,
+        source_version_id: v.source_version_id || null,
+        published_at: v.published_at || null,
+        release_type: v.release_type || 'release',
+        changelog: v.changelog || null,
+        files_metadata: v.files_metadata || null,
       });
     }
   }

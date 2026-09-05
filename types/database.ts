@@ -9,7 +9,7 @@ export type Json =
 export type ModStatus = 'allowed' | 'restricted' | 'blocked' | 'unknown';
 export type UserRole = 'owner' | 'project_lead' | 'admin' | 'moderator' | 'member';
 export type SuggestionStatus = 'pending' | 'accepted' | 'rejected';
-export type ModSource = 'modrinth' | 'curseforge' | 'manual';
+export type ModSource = 'modrinth' | 'curseforge' | 'github' | 'website' | 'other' | 'manual';
 
 export interface ModRestriction {
   id: string;
@@ -181,7 +181,9 @@ export type Database = {
       };
       mod_versions: {
         Row: {
+          changelog: string | null;
           created_at: string;
+          files_metadata: Json | null;
           id: string;
           loader: string;
           minecraft_version: string;
@@ -189,11 +191,14 @@ export type Database = {
           mod_version: string;
           note: string | null;
           published_at: string | null;
+          release_type: string | null;
           source_version_id: string | null;
           status: string;
         };
         Insert: {
+          changelog?: string | null;
           created_at?: string;
+          files_metadata?: Json | null;
           id?: string;
           loader: string;
           minecraft_version: string;
@@ -201,11 +206,14 @@ export type Database = {
           mod_version: string;
           note?: string | null;
           published_at?: string | null;
+          release_type?: string | null;
           source_version_id?: string | null;
           status?: string;
         };
         Update: {
+          changelog?: string | null;
           created_at?: string;
+          files_metadata?: Json | null;
           id?: string;
           loader?: string;
           minecraft_version?: string;
@@ -213,6 +221,7 @@ export type Database = {
           mod_version?: string;
           note?: string | null;
           published_at?: string | null;
+          release_type?: string | null;
           source_version_id?: string | null;
           status?: string;
         };
@@ -238,10 +247,12 @@ export type Database = {
           id: string;
           last_reviewed_at: string;
           last_synced_at: string | null;
+          latest_external_version: string | null;
           loaders: string[];
           minecraft_versions: string[];
           mod_id: string | null;
           modrinth_id: string | null;
+          modrinth_metadata: Json | null;
           modrinth_url: string | null;
           name: string;
           reason: string | null;
@@ -265,10 +276,12 @@ export type Database = {
           id?: string;
           last_reviewed_at?: string;
           last_synced_at?: string | null;
+          latest_external_version?: string | null;
           loaders?: string[];
           minecraft_versions?: string[];
           mod_id?: string | null;
           modrinth_id?: string | null;
+          modrinth_metadata?: Json | null;
           modrinth_url?: string | null;
           name: string;
           reason?: string | null;
@@ -277,7 +290,7 @@ export type Database = {
           source?: string;
           source_project_id?: string | null;
           source_url?: string | null;
-          status: string;
+          status?: string;
           updated_at?: string;
           website_url?: string | null;
         };
@@ -292,10 +305,12 @@ export type Database = {
           id?: string;
           last_reviewed_at?: string;
           last_synced_at?: string | null;
+          latest_external_version?: string | null;
           loaders?: string[];
           minecraft_versions?: string[];
           mod_id?: string | null;
           modrinth_id?: string | null;
+          modrinth_metadata?: Json | null;
           modrinth_url?: string | null;
           name?: string;
           reason?: string | null;
@@ -368,7 +383,7 @@ export type ModWithRestrictions = Mod & {
   mod_restrictions?: ModRestriction[];
 };
 export type ModVersion = Omit<Database['public']['Tables']['mod_versions']['Row'], 'status'> & {
-  status: 'allowed' | 'restricted' | 'blocked';
+  status: 'allowed' | 'restricted' | 'blocked' | 'unknown';
 };
 export type ModSuggestion = Omit<Database['public']['Tables']['mod_suggestions']['Row'], 'status'> & {
   status: SuggestionStatus;
