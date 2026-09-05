@@ -18,6 +18,7 @@ import {
   XCircle,
   Layers,
   Cpu,
+  Download,
 } from 'lucide-react';
 import type { ModWithRestrictions, ModStatus } from '@/types/database';
 
@@ -613,14 +614,26 @@ export function ModCatalog({
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Link
-                          href={`/mods/${mod.slug}`}
-                          className="inline-flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
-                          aria-label={`Details zu ${mod.name}`}
-                        >
-                          <span>Prüfen</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          {mod.status !== 'blocked' && (
+                            <Link
+                              href={`/mods/${mod.slug}#download`}
+                              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 hover:text-white transition-colors"
+                              title="Download & Versionen"
+                            >
+                              <Download className="w-3 h-3 text-emerald-400" />
+                              <span>Download</span>
+                            </Link>
+                          )}
+                          <Link
+                            href={`/mods/${mod.slug}`}
+                            className="inline-flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
+                            aria-label={`Details zu ${mod.name}`}
+                          >
+                            <span>Prüfen</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -752,7 +765,7 @@ export function ModCatalog({
                   </div>
                 )}
 
-                {/* Footer Link to details */}
+                {/* Footer Link to details & direct download */}
                 <div className="pt-3 mt-3 border-t border-[#1e222b] flex items-center justify-between text-xs">
                   <span className="text-[11px] text-zinc-500">
                     {mod.source && mod.source !== 'manual' && (
@@ -760,13 +773,25 @@ export function ModCatalog({
                     )}
                   </span>
 
-                  <Link
-                    href={`/mods/${mod.slug}`}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition-colors"
-                  >
-                    <span>Zur Mod-Prüfung</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    {mod.status !== 'blocked' && (
+                      <Link
+                        href={`/mods/${mod.slug}#download`}
+                        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 hover:text-white transition-colors"
+                      >
+                        <Download className="w-3 h-3 text-emerald-400" />
+                        <span>Download</span>
+                      </Link>
+                    )}
+
+                    <Link
+                      href={`/mods/${mod.slug}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition-colors"
+                    >
+                      <span>Zur Mod-Prüfung</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}

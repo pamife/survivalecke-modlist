@@ -12,8 +12,11 @@ import {
   ShieldAlert,
   FileText,
   CheckCircle2,
+  Download,
 } from 'lucide-react';
 import { MinecraftHeaderVersions, MinecraftVersionSection } from '@/components/MinecraftVersionDisplay';
+import { VersionDownloadSection } from '@/components/VersionDownloadSection';
+import { getModrinthProjectVersions } from '@/lib/modrinth';
 import type { Mod, ModVersion, ModRestriction } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -86,12 +89,35 @@ export default async function ModDetailPage({ params }: PageProps) {
     .eq('mod_id', mod.id)
     .order('created_at', { ascending: false });
 
-  const versions = (versionsData || []) as unknown as ModVersion[];
+  let versions = (versionsData || []) as unknown as ModVersion[];
+
+  // Fallback: If no versions in DB yet, dynamically fetch from Modrinth so direct downloads are ALWAYS available
+  if (versions.length === 0 && (mod.modrinth_id || mod.source_project_id)) {
+    const projectId = mod.modrinth_id || mod.source_project_id!;
+    const { versions: modrinthVersions } = await getModrinthProjectVersions(projectId, 25);
+    if (modrinthVersions && modrinthVersions.length > 0) {
+      versions = modrinthVersions.map((v) => ({
+        id: v.id,
+        mod_id: mod.id,
+        mod_version: v.version_number,
+        minecraft_version: v.game_versions?.[0] || '1.21.1',
+        loader: (v.loaders?.[0] || 'Fabric').charAt(0).toUpperCase() + (v.loaders?.[0] || 'Fabric').slice(1),
+        status: mod.status,
+        note: null,
+        source_version_id: v.id,
+        published_at: v.date_published,
+        release_type: v.version_type,
+        changelog: v.changelog,
+        files_metadata: v.files as any,
+        created_at: v.date_published,
+      }));
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 w-full space-y-6">
       {/* Breadcrumb / Back button */}
-      <div>
+      <div className="flex items-center justify-between">
         <Link
           href="/mods"
           className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
@@ -99,6 +125,16 @@ export default async function ModDetailPage({ params }: PageProps) {
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Zurück zur Mod-Übersicht</span>
         </Link>
+
+        {mod.status !== 'blocked' && (
+          <a
+            href="#download"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Zum Download</span>
+          </a>
+        )}
       </div>
 
       {/* Main Header Panel */}
@@ -254,54 +290,8 @@ export default async function ModDetailPage({ params }: PageProps) {
         <MinecraftVersionSection versions={mod.minecraft_versions} />
       )}
 
-      {/* Version Scope Notice when no specific version overrides exist */}
-      {versions.length === 0 && (
-        <div className="bg-[#14161b] border border-[#232730] rounded-md p-4 text-xs text-zinc-400 flex items-center justify-between">
-          <span className="text-zinc-300 font-medium">Geltungsbereich der Einstufung:</span>
-          <span className="font-mono text-zinc-200">Gilt für alle unterstützten Versionen</span>
-        </div>
-      )}
-
-      {/* Version Specific Overrides */}
-      {versions.length > 0 && (
-        <div className="bg-[#14161b] border border-[#232730] rounded-md p-6 space-y-3">
-          <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-            Geprüfte Mod-Versionen
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[#232730] text-[11px] text-zinc-400 font-semibold">
-                  <th className="py-2 px-3">Mod-Version</th>
-                  <th className="py-2 px-3">Minecraft</th>
-                  <th className="py-2 px-3">Loader</th>
-                  <th className="py-2 px-3">Status</th>
-                  <th className="py-2 px-3">Hinweis</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#1e222a]">
-                {versions.map((ver) => (
-                  <tr key={ver.id} className="hover:bg-[#181b22]">
-                    <td className="py-2 px-3 font-mono font-medium text-zinc-200">
-                      {ver.mod_version}
-                    </td>
-                    <td className="py-2 px-3 text-zinc-300">
-                      {ver.minecraft_version}
-                    </td>
-                    <td className="py-2 px-3 text-zinc-300">{ver.loader}</td>
-                    <td className="py-2 px-3">
-                      <StatusBadge status={ver.status} size="sm" />
-                    </td>
-                    <td className="py-2 px-3 text-zinc-400">
-                      {ver.note || '–'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Direct Download & Version Section */}
+      <VersionDownloadSection mod={mod} versions={versions} />
     </div>
   );
 }
