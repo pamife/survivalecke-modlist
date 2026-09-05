@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import type { Mod, ModVersion } from '@/types/database';
 import { StatusBadge } from '@/components/StatusBadge';
 import { VersionChangelogModal } from '@/components/VersionChangelogModal';
+import { compareMcVersionsDesc, compareModVersionsDesc } from '@/lib/minecraft';
 import {
   Download,
   FileDown,
@@ -67,27 +68,27 @@ export function DownloadMask({ mod, versions }: DownloadMaskProps) {
     return fabric || availableLoaders[0] || 'Fabric';
   });
 
-  // 2. Versions matching current Loader
+  // 2. Versions matching current Loader (sorted newest first)
   const loaderVersions = useMemo(() => {
-    return versions.filter(
-      (v) => v.loader?.toLowerCase() === selectedLoader.toLowerCase()
-    );
+    return versions
+      .filter((v) => v.loader?.toLowerCase() === selectedLoader.toLowerCase())
+      .sort(compareModVersionsDesc);
   }, [versions, selectedLoader]);
 
-  // 3. Available MC Versions for selected Loader
+  // 3. Available MC Versions for selected Loader (strictly sorted descending: newest to oldest)
   const availableMcVersions = useMemo(() => {
     const set = new Set<string>();
     loaderVersions.forEach((v) => {
       if (v.minecraft_version) set.add(v.minecraft_version);
     });
-    const list = Array.from(set);
+    const list = Array.from(set).sort(compareMcVersionsDesc);
     if (list.length === 0 && mod.minecraft_versions?.length) {
-      return mod.minecraft_versions;
+      return [...mod.minecraft_versions].sort(compareMcVersionsDesc);
     }
     return list.length > 0 ? list : ['1.21.1'];
   }, [loaderVersions, mod.minecraft_versions]);
 
-  // Selected MC Version (defaults to first available MC version, e.g. 1.21.1)
+  // Selected MC Version (defaults to first available MC version, which is the newest)
   const [selectedMcVersion, setSelectedMcVersion] = useState<string>(() => {
     return availableMcVersions[0] || '1.21.1';
   });
@@ -100,11 +101,11 @@ export function DownloadMask({ mod, versions }: DownloadMaskProps) {
     return availableMcVersions[0] || '';
   }, [availableMcVersions, selectedMcVersion]);
 
-  // 4. Versions matching Loader AND Minecraft Version
+  // 4. Versions matching Loader AND Minecraft Version (strictly sorted newest first)
   const matchingVersions = useMemo(() => {
-    return loaderVersions.filter(
-      (v) => v.minecraft_version === effectiveMcVersion
-    );
+    return loaderVersions
+      .filter((v) => v.minecraft_version === effectiveMcVersion)
+      .sort(compareModVersionsDesc);
   }, [loaderVersions, effectiveMcVersion]);
 
   // 5. Determine "Neueste Version" logic:
