@@ -281,6 +281,10 @@ export type Database = {
     };
     Functions: {
       is_admin: { Args: never; Returns: boolean };
+      claim_initial_admin: {
+        Args: { admin_user_id: string; admin_email: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       [_ in never]: never;

@@ -51,6 +51,24 @@ CREATE POLICY "Admins can update profiles"
     USING (public.is_admin())
     WITH CHECK (public.is_admin());
 
+-- Helper function to safely claim initial admin role when 0 admins exist
+CREATE OR REPLACE FUNCTION public.claim_initial_admin(admin_user_id UUID, admin_email TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    IF (SELECT count(*) FROM public.profiles WHERE role = 'admin') = 0 THEN
+        INSERT INTO public.profiles (id, email, role)
+        VALUES (admin_user_id, admin_email, 'admin')
+        ON CONFLICT (id) DO UPDATE SET role = 'admin', email = admin_email;
+        RETURN TRUE;
+    END IF;
+    RETURN FALSE;
+END;
+$$;
+
 -- Trigger to auto-create profile when a user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER

@@ -27,29 +27,46 @@ export async function loginAdmin(
     return { error: validated.error.issues[0]?.message || 'Ungültige Eingaben.' };
   }
 
-  const supabase = await createClient();
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: validated.data.email,
-    password: validated.data.password,
-  });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (authError || !authData.user) {
-    return { error: 'E-Mail oder Passwort ungültig.' };
+  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
+    return {
+      error:
+        'Supabase ist in Vercel noch nicht konfiguriert. Bitte trage NEXT_PUBLIC_SUPABASE_URL und NEXT_PUBLIC_SUPABASE_ANON_KEY in den Vercel Environment Variables ein und führe einen Redeploy durch.',
+    };
   }
 
-  // Check admin role in profiles table
-  const { data: profileData } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', authData.user.id)
-    .single();
+  try {
+    const supabase = await createClient();
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: validated.data.email,
+      password: validated.data.password,
+    });
 
-  const profile = profileData as { role: string } | null;
+    if (authError || !authData.user) {
+      return { error: authError?.message || 'E-Mail oder Passwort ungültig.' };
+    }
 
-  if (!profile || profile.role !== 'admin') {
-    await supabase.auth.signOut();
+    // Check admin role in profiles table
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', authData.user.id)
+      .single();
+
+    const profile = profileData as { role: string } | null;
+
+    if (!profile || profile.role !== 'admin') {
+      await supabase.auth.signOut();
+      return {
+        error: 'Zugriff verweigert: Dieses Konto besitzt keine Administrator-Berechtigung.',
+      };
+    }
+  } catch (err: unknown) {
+    console.error('loginAdmin error:', err);
     return {
-      error: 'Zugriff verweigert: Dieses Konto besitzt keine Administrator-Berechtigung.',
+      error: `Verbindungsfehler (${err instanceof Error ? err.message : 'fetch failed'}). Bitte Vercel-Umgebungsvariablen prüfen.`,
     };
   }
 
@@ -68,44 +85,78 @@ export async function setupInitialAdmin(
     return { error: validated.error.issues[0]?.message || 'Ungültige Eingaben.' };
   }
 
-  const supabase = await createClient();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Strictly check if ANY admin exists in profiles
-  const { count, error: countError } = await supabase
-    .from('profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'admin');
-
-  if (!countError && (count ?? 0) > 0) {
+  if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('placeholder')) {
     return {
-      error: 'Es existiert bereits ein Administrator. Bitte regulär einloggen.',
+      error:
+        'Supabase-Umgebungsvariablen fehlen auf Vercel! Bitte gehe in dein Vercel-Projekt -> Settings -> Environment Variables und trage NEXT_PUBLIC_SUPABASE_URL und NEXT_PUBLIC_SUPABASE_ANON_KEY ein. Klicke danach auf Redeploy.',
     };
   }
 
-  // Create user in Supabase Auth
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-    email: validated.data.email,
-    password: validated.data.password,
-  });
+  try {
+    const supabase = await createClient();
 
-  if (signUpError || !signUpData.user) {
-    return {
-      error: signUpError?.message || 'Registrierung fehlgeschlagen.',
-    };
-  }
+    // Strictly check if ANY admin exists in profiles
+    const { count, error: countError } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'admin');
 
-  // Assign admin role to this initial user
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .upsert({
-      id: signUpData.user.id,
+    if (!countError && (count ?? 0) > 0) {
+      return {
+        error: 'Es existiert bereits ein Administrator. Bitte regulär einloggen.',
+      };
+    }
+
+    // 1. Create user in Supabase Auth
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: validated.data.email,
-      role: 'admin',
+      password: validated.data.password,
     });
 
-  if (profileError) {
+    if (signUpError) {
+      return {
+        error: `Registrierung fehlgeschlagen: ${signUpError.message}`,
+      };
+    }
+
+    const userId = signUpData.user?.id;
+    if (!userId) {
+      return {
+        error: 'Konto erstellt. Bitte prüfe dein Postfach auf eine Bestätigungs-E-Mail.',
+      };
+    }
+
+    // 2. Safely assign admin role using SECURITY DEFINER RPC
+    try {
+      await supabase.rpc('claim_initial_admin', {
+        admin_user_id: userId,
+        admin_email: validated.data.email,
+      });
+    } catch (rpcErr) {
+      console.error('claim_initial_admin error:', rpcErr);
+    }
+
+    // 3. Automatically sign in session if not set
+    if (!signUpData.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: validated.data.email,
+        password: validated.data.password,
+      });
+
+      if (signInError) {
+        return {
+          error:
+            'Konto angelegt! Falls in deinem Supabase-Projekt E-Mail-Bestätigung aktiviert ist, bestätige bitte zuerst die E-Mail und logge dich dann ein.',
+        };
+      }
+    }
+  } catch (err: unknown) {
+    console.error('setupInitialAdmin error:', err);
     return {
-      error: 'Benutzer erstellt, aber Admin-Rolle konnte nicht zugewiesen werden: ' + profileError.message,
+      error: `Verbindungsfehler: ${err instanceof Error ? err.message : 'fetch failed'}. Bitte Vercel-Umgebungsvariablen prüfen.`,
     };
   }
 
