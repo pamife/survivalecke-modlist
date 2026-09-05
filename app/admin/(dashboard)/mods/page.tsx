@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
-import { PlusCircle, Edit, Trash2, ExternalLink, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, ExternalLink } from 'lucide-react';
 import { deleteMod } from '@/actions/adminMods';
-import { SyncModButton } from '@/components/SyncModButton';
 import type { Mod } from '@/types/database';
 
 export const dynamic = 'force-dynamic';

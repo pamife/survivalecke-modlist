@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { fetchExternalMod, type ImportedModData } from '@/actions/importMod';
-import { Download, Loader2, AlertCircle, CheckCircle2, ArrowRight, ExternalLink } from 'lucide-react';
+import { Download, Loader2, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
 interface ModImportBarProps {

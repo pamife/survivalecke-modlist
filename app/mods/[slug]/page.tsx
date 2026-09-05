@@ -238,6 +238,19 @@ export default async function ModDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Unknown Status Warning Banner */}
+      {mod.status === 'unknown' && (
+        <div className="bg-[#14161b] border border-[#232730] rounded-md p-5 flex items-start gap-3 text-xs text-zinc-300">
+          <ShieldAlert className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h3 className="font-semibold text-zinc-200">Noch nicht von Survivalecke geprüft</h3>
+            <p className="text-zinc-400 leading-relaxed">
+              Dieser Mod wurde von unserem Team noch nicht offiziell überprüft. Die Nutzung auf dem Server erfolgt auf eigenes Risiko. Unfaire Spielvorteile bleiben gemäß Serverregeln untersagt.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Restrictions / Auflagen (Structured Display) */}
       {(restrictions.length > 0 || mod.restrictions) && (
         <div className="bg-amber-950/20 border border-amber-800/40 rounded-md p-6 space-y-3">
@@ -271,6 +284,14 @@ export default async function ModDetailPage({ params }: PageProps) {
       {/* Supported Minecraft Versions Section */}
       {mod.minecraft_versions && mod.minecraft_versions.length > 0 && (
         <MinecraftVersionSection versions={mod.minecraft_versions} />
+      )}
+
+      {/* Version Scope Notice when no specific version overrides exist */}
+      {versions.length === 0 && (
+        <div className="bg-[#14161b] border border-[#232730] rounded-md p-4 text-xs text-zinc-400 flex items-center justify-between">
+          <span className="text-zinc-300 font-medium">Geltungsbereich der Einstufung:</span>
+          <span className="font-mono text-zinc-200">Gilt für alle unterstützten Versionen</span>
+        </div>
       )}
 
       {/* Version Specific Overrides */}

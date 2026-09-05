@@ -358,6 +358,9 @@ export type Mod = Omit<Database['public']['Tables']['mods']['Row'], 'status' | '
   status: ModStatus;
   source: ModSource;
 };
+export type ModWithRestrictions = Mod & {
+  mod_restrictions?: ModRestriction[];
+};
 export type ModVersion = Omit<Database['public']['Tables']['mod_versions']['Row'], 'status'> & {
   status: 'allowed' | 'restricted' | 'blocked';
 };

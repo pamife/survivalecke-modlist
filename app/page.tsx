@@ -62,49 +62,61 @@ export default async function HomePage() {
 
         {/* Real Database Statistics - Exact Real Numbers */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mx-auto">
-          <div className="bg-[#14161b] border border-[#232730] p-4 rounded-md text-center">
+          <Link
+            href="/mods?status=allowed"
+            className="bg-[#14161b] hover:bg-[#1a1e26] border border-[#232730] hover:border-emerald-800/80 p-4 rounded-md text-center transition-colors block group"
+          >
             <div className="flex items-center justify-center gap-1.5 text-emerald-400 text-xs font-medium mb-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Erlaubt</span>
             </div>
-            <div className="text-2xl font-bold text-zinc-100 font-mono">
+            <div className="text-2xl font-bold text-zinc-100 font-mono group-hover:text-emerald-300">
               {stats.allowed}
             </div>
             <div className="text-[11px] text-zinc-400 mt-0.5">freigegeben</div>
-          </div>
+          </Link>
 
-          <div className="bg-[#14161b] border border-[#232730] p-4 rounded-md text-center">
+          <Link
+            href="/mods?status=restricted"
+            className="bg-[#14161b] hover:bg-[#1a1e26] border border-[#232730] hover:border-amber-800/80 p-4 rounded-md text-center transition-colors block group"
+          >
             <div className="flex items-center justify-center gap-1.5 text-amber-400 text-xs font-medium mb-1">
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>Eingeschränkt</span>
             </div>
-            <div className="text-2xl font-bold text-zinc-100 font-mono">
+            <div className="text-2xl font-bold text-zinc-100 font-mono group-hover:text-amber-300">
               {stats.restricted}
             </div>
             <div className="text-[11px] text-zinc-400 mt-0.5">mit Auflagen</div>
-          </div>
+          </Link>
 
-          <div className="bg-[#14161b] border border-[#232730] p-4 rounded-md text-center">
+          <Link
+            href="/mods?status=blocked"
+            className="bg-[#14161b] hover:bg-[#1a1e26] border border-[#232730] hover:border-rose-800/80 p-4 rounded-md text-center transition-colors block group"
+          >
             <div className="flex items-center justify-center gap-1.5 text-rose-400 text-xs font-medium mb-1">
               <XCircle className="w-3.5 h-3.5" />
               <span>Verboten</span>
             </div>
-            <div className="text-2xl font-bold text-zinc-100 font-mono">
+            <div className="text-2xl font-bold text-zinc-100 font-mono group-hover:text-rose-300">
               {stats.blocked}
             </div>
             <div className="text-[11px] text-zinc-400 mt-0.5">unzulässig</div>
-          </div>
+          </Link>
 
-          <div className="bg-[#14161b] border border-[#232730] p-4 rounded-md text-center">
+          <Link
+            href="/mods?status=unknown"
+            className="bg-[#14161b] hover:bg-[#1a1e26] border border-[#232730] hover:border-zinc-600 p-4 rounded-md text-center transition-colors block group"
+          >
             <div className="flex items-center justify-center gap-1.5 text-zinc-400 text-xs font-medium mb-1">
               <HelpCircle className="w-3.5 h-3.5" />
               <span>Ungeprüft</span>
             </div>
-            <div className="text-2xl font-bold text-zinc-100 font-mono">
+            <div className="text-2xl font-bold text-zinc-100 font-mono group-hover:text-zinc-200">
               {stats.unknown}
             </div>
             <div className="text-[11px] text-zinc-400 mt-0.5">in Prüfung</div>
-          </div>
+          </Link>
         </div>
 
         {/* Status Definitions Overview Panel */}

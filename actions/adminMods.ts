@@ -6,7 +6,7 @@ import { logAuditEvent } from '@/lib/audit';
 import { isValidExternalUrl } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import type { Mod, ModStatus, ModSuggestion, ModRestriction } from '@/types/database';
+import type { Mod, ModStatus, ModSuggestion } from '@/types/database';
 
 const restrictionItemSchema = z.object({
   title: z.string().trim().min(1, 'Titel der Einschränkung erforderlich.'),

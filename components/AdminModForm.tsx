@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useActionState, useId } from 'react';
+import React, { useState, useActionState } from 'react';
 import { createMod, updateMod, type ModActionResult } from '@/actions/adminMods';
 import { ModImportBar } from '@/components/ModImportBar';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -16,11 +16,7 @@ import {
   Trash2,
   ExternalLink,
   ShieldAlert,
-  Layers,
-  Cpu,
   FileText,
-  CheckCircle2,
-  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Mod, ModStatus, ModSource, ModRestriction, ModVersion } from '@/types/database';

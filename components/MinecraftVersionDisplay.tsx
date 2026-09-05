@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Layers, ChevronDown, ChevronUp, Search } from 'lucide-react';
-import { processMinecraftVersions, compareMcVersionsDesc } from '@/lib/minecraft';
+import { processMinecraftVersions } from '@/lib/minecraft';
 
 interface MinecraftVersionDisplayProps {
   versions: string[];
