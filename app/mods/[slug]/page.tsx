@@ -14,6 +14,7 @@ import {
   FileText,
   CheckCircle2,
 } from 'lucide-react';
+import { MinecraftHeaderVersions, MinecraftVersionSection } from '@/components/MinecraftVersionDisplay';
 import type { Mod, ModVersion, ModRestriction } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
@@ -199,11 +200,7 @@ export default async function ModDetailPage({ params }: PageProps) {
               <Layers className="w-3.5 h-3.5" />
               <span>Minecraft</span>
             </div>
-            <div className="font-medium text-zinc-200">
-              {mod.minecraft_versions && mod.minecraft_versions.length > 0
-                ? mod.minecraft_versions.join(', ')
-                : '–'}
-            </div>
+            <MinecraftHeaderVersions versions={mod.minecraft_versions || []} />
           </div>
 
           <div className="space-y-1">
@@ -269,6 +266,11 @@ export default async function ModDetailPage({ params }: PageProps) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Supported Minecraft Versions Section */}
+      {mod.minecraft_versions && mod.minecraft_versions.length > 0 && (
+        <MinecraftVersionSection versions={mod.minecraft_versions} />
       )}
 
       {/* Version Specific Overrides */}

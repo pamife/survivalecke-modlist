@@ -183,7 +183,7 @@ export function AdminModForm({
     setCurseforgeUrl(imported.curseforge_url || '');
     setSourceUrl(imported.source_url || '');
     setWebsiteUrl(imported.website_url || '');
-    setMcVersions(imported.minecraft_versions.join(', '));
+    setMcVersions(imported.minecraft_versions.slice(0, 15).join(', '));
     setSelectedLoaders(imported.loaders);
 
     // Explicitly set status to unknown (never allowed automatically)
@@ -430,7 +430,13 @@ export function AdminModForm({
                 </div>
                 <div>
                   <span className="text-[11px] text-zinc-500 block">Minecraft-Versionen:</span>
-                  <span className="text-zinc-200 font-medium">{mcVersions || '–'}</span>
+                  <span className="text-zinc-200 font-medium font-mono text-xs">
+                    {mcVersions ? (
+                      mcVersions.split(',').length > 4
+                        ? `${mcVersions.split(',').slice(0, 3).map((v) => v.trim()).join(', ')} (+${mcVersions.split(',').length - 3} weitere)`
+                        : mcVersions
+                    ) : '–'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[11px] text-zinc-500 block">Geprüfte Versionen:</span>

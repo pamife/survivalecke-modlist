@@ -140,14 +140,28 @@ export default async function ModsPage({ searchParams }: PageProps) {
                     <td className="py-3.5 px-4">
                       <Link
                         href={`/mods/${mod.slug}`}
-                        className="font-medium text-zinc-100 group-hover:text-white flex flex-col"
+                        className="font-medium text-zinc-100 group-hover:text-white flex items-center gap-3"
                       >
-                        <span className="font-semibold">{mod.name}</span>
-                        {mod.mod_id && (
-                          <span className="text-[11px] text-zinc-400 font-mono">
-                            {mod.mod_id}
-                          </span>
+                        {mod.icon_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={mod.icon_url}
+                            alt=""
+                            className="w-8 h-8 rounded bg-zinc-800 object-cover border border-[#232730] shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-zinc-800 border border-[#232730] flex items-center justify-center text-zinc-500 font-bold text-xs shrink-0">
+                            {mod.name.charAt(0) || 'M'}
+                          </div>
                         )}
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{mod.name}</span>
+                          {mod.mod_id && (
+                            <span className="text-[11px] text-zinc-400 font-mono">
+                              {mod.mod_id}
+                            </span>
+                          )}
+                        </div>
                       </Link>
                     </td>
                     <td className="py-3.5 px-4">

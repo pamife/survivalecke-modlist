@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth';
+import { processMinecraftVersions } from '@/lib/minecraft';
 import type { ModSource } from '@/types/database';
 
 export interface ExternalModVersion {
@@ -368,7 +369,7 @@ export async function fetchExternalMod(rawInput: string): Promise<ImportResult> 
         icon_url: project.icon_url || null,
         category: mapToStandardCategory(categories),
         loaders: loaders.length > 0 ? loaders : ['Fabric'],
-        minecraft_versions: (project.game_versions || []).reverse(),
+        minecraft_versions: processMinecraftVersions(project.game_versions || []).primary,
         website_url: project.issues_url || project.wiki_url || null,
         source_url: project.source_url || null,
         modrinth_url: `https://modrinth.com/mod/${project.slug}`,

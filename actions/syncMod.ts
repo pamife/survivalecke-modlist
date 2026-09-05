@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit';
 import { revalidatePath } from 'next/cache';
+import { processMinecraftVersions } from '@/lib/minecraft';
 import type { Mod } from '@/types/database';
 
 export async function syncModExternalData(modId: string): Promise<{
@@ -115,7 +116,7 @@ export async function syncModExternalData(modId: string): Promise<{
           description: project.description || mod.description,
           icon_url: project.icon_url || mod.icon_url,
           loaders: loaders.length > 0 ? loaders : mod.loaders,
-          minecraft_versions: (project.game_versions || []).reverse(),
+          minecraft_versions: processMinecraftVersions(project.game_versions || []).primary,
           website_url: project.issues_url || project.wiki_url || mod.website_url,
           source_url: project.source_url || mod.source_url,
           last_synced_at: now,
