@@ -97,16 +97,24 @@ export default async function ModsPage({ searchParams }: PageProps) {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full space-y-6">
       {/* Compact, purposeful Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-[#232730] pb-5">
-        <div className="space-y-1">
-          <span className="text-[11px] font-mono tracking-wider uppercase text-emerald-400 font-semibold">
-            Survivalecke
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Mods
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-400 max-w-xl">
-            Finde in Sekunden heraus, welche Client-Mods auf Survivalecke erlaubt, eingeschränkt oder verboten sind.
-          </p>
+        <div className="flex items-center gap-3.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.webp"
+            alt="Survivalecke"
+            className="w-14 h-14 object-contain drop-shadow-md shrink-0"
+          />
+          <div className="space-y-0.5">
+            <span className="text-[11px] font-mono tracking-wider uppercase text-emerald-400 font-semibold">
+              Survivalecke.de
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight leading-tight">
+              Mod-Datenbank
+            </h1>
+            <p className="text-xs sm:text-sm text-zinc-400 max-w-xl">
+              Finde in Sekunden heraus, welche Client-Mods erlaubt sind und lade geprüfte Versionen direkt herunter.
+            </p>
+          </div>
         </div>
 
         <Link

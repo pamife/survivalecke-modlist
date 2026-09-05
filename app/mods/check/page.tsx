@@ -11,7 +11,15 @@ export const metadata: Metadata = {
 export default function CheckPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12 w-full space-y-8">
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-3">
+        <div className="flex justify-center mb-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.webp"
+            alt="Survivalecke"
+            className="w-16 h-16 object-contain drop-shadow-md hover:scale-105 transition-transform"
+          />
+        </div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs font-mono">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
           <span>Schnell-Check</span>

@@ -41,17 +41,26 @@ export default async function HomePage() {
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-12 md:py-20">
       <div className="w-full max-w-4xl mx-auto space-y-12">
         {/* Header / Hero Section */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs font-mono mb-2">
+        <div className="text-center space-y-4">
+          <div className="flex justify-center mb-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.webp"
+              alt="Survivalecke Logo"
+              className="w-28 h-28 sm:w-36 sm:h-36 object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] hover:scale-105 transition-transform"
+            />
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 text-xs font-mono">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Offizielle Server-Datenbank</span>
+            <span>Offizielle Server-Datenbank • Survivalecke.de</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight">
-            Survivalecke Modlist
+            Survivalecke Mod-Datenbank
           </h1>
-          <p className="text-sm sm:text-base text-zinc-400 max-w-xl mx-auto">
-            Prüfe, ob dein Client-Mod auf Survivalecke erlaubt ist.
+          <p className="text-sm sm:text-base text-zinc-400 max-w-xl mx-auto leading-relaxed">
+            Prüfe und lade geprüfte Client-Mods für den Minecraft-Server Survivalecke direkt herunter.
           </p>
         </div>
 

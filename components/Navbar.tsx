@@ -10,15 +10,18 @@ export function Navbar() {
           href="/"
           className="flex items-center gap-2.5 text-zinc-100 hover:text-white transition-colors group"
         >
-          <div className="w-8 h-8 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center text-emerald-400 group-hover:border-zinc-600">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.webp"
+            alt="Survivalecke Logo"
+            className="w-9 h-9 object-contain drop-shadow-md group-hover:scale-105 transition-transform shrink-0"
+          />
           <div className="flex flex-col">
             <span className="font-bold text-sm tracking-tight text-white leading-none">
               Survivalecke
             </span>
-            <span className="text-[11px] text-zinc-400 font-mono tracking-wider">
-              MODLIST
+            <span className="text-[10px] text-emerald-400 font-mono tracking-wider font-semibold">
+              MOD-DATENBANK
             </span>
           </div>
         </Link>

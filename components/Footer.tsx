@@ -5,13 +5,21 @@ export function Footer() {
     <footer className="mt-auto border-t border-[#232730] bg-[#0f1014] text-zinc-400 text-xs">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex flex-col items-center md:items-start gap-1">
-            <span className="font-semibold text-zinc-200">
-              Survivalecke Client-Mod-Datenbank
-            </span>
-            <p className="text-zinc-400 text-[11px] text-center md:text-left">
-              Offizielle Prüfliste für erlaubte und unzulässige Modifikationen auf Survivalecke.
-            </p>
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.webp"
+              alt="Survivalecke"
+              className="w-10 h-10 object-contain drop-shadow-md shrink-0"
+            />
+            <div className="flex flex-col items-center md:items-start">
+              <span className="font-bold text-sm text-zinc-200">
+                Survivalecke.de
+              </span>
+              <p className="text-zinc-400 text-[11px] text-center md:text-left">
+                Offizielle Client-Mod-Datenbank & Richtlinien für Minecraft.
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs">

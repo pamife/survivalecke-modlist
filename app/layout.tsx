@@ -13,6 +13,11 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://survivalecke-modlist.vercel.app'),
   keywords: ['Survivalecke', 'Minecraft', 'Client Mods', 'Modlist', 'Erlaubte Mods', 'Minecraft Server'],
   authors: [{ name: 'Survivalecke Team' }],
+  icons: {
+    icon: '/logo.webp',
+    shortcut: '/logo.webp',
+    apple: '/logo.webp',
+  },
   robots: {
     index: true,
     follow: true,

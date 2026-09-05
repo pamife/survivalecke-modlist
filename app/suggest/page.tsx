@@ -21,13 +21,21 @@ export default async function SuggestPage({ searchParams }: PageProps) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 w-full space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-white tracking-tight">
-          Mod zur Prüfung vorschlagen
-        </h1>
-        <p className="text-xs sm:text-sm text-zinc-400">
-          Reiche einen Mod ein, den du gerne auf Survivalecke nutzen möchtest. Unser Team prüft den Quellcode und die Features auf Konformität mit unseren Serverregeln.
-        </p>
+      <div className="flex items-center gap-3.5 border-b border-[#232730] pb-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.webp"
+          alt="Survivalecke"
+          className="w-12 h-12 object-contain drop-shadow-md shrink-0"
+        />
+        <div className="space-y-0.5">
+          <h1 className="text-2xl font-bold text-white tracking-tight">
+            Mod zur Prüfung vorschlagen
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-400">
+            Reiche einen Mod ein, den du gerne auf Survivalecke nutzen möchtest. Unser Team prüft den Quellcode und die Features.
+          </p>
+        </div>
       </div>
 
       <div className="p-3.5 bg-[#14161b] border border-[#232730] rounded-md text-xs text-zinc-400 flex items-start gap-2.5">

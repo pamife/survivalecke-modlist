@@ -36,10 +36,13 @@ export default async function AdminDashboardLayout({
       {/* Top Admin Bar */}
       <div className="border-b border-[#232730] bg-[#121419] px-4 sm:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-emerald-950/60 border border-emerald-800/80 flex items-center justify-center text-emerald-400">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
+          <div className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.webp"
+              alt="Survivalecke"
+              className="w-7 h-7 object-contain drop-shadow-sm shrink-0"
+            />
             <span className="font-bold text-sm text-white">Survivalecke</span>
             <span className="text-[10px] font-mono uppercase bg-zinc-800 border border-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded">
               Team

@@ -31,9 +31,14 @@ export default async function AdminLoginPage() {
   return (
     <div className="min-h-[calc(100vh-10rem)] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-zinc-900 border border-zinc-700 text-emerald-400">
-            <Lock className="w-6 h-6" />
+        <div className="text-center space-y-3">
+          <div className="flex justify-center mb-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.webp"
+              alt="Survivalecke Logo"
+              className="w-20 h-20 object-contain drop-shadow-lg hover:scale-105 transition-transform"
+            />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Survivalecke Team-Login
