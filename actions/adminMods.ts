@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, requireStaff } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit';
 import { isValidExternalUrl } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
@@ -468,7 +468,7 @@ export async function reviewSuggestion(
   status: 'accepted' | 'rejected',
   adminNotes?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const { user } = await requireAdmin();
+  const { user } = await requireStaff();
   const supabase = await createClient();
 
   const { data: oldSuggestionData } = await supabase

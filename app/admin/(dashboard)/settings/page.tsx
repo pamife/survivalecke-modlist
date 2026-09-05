@@ -1,19 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
-import { ShieldCheck, Server, Lock } from 'lucide-react';
+import { ShieldCheck, Server, Users, ArrowRight } from 'lucide-react';
 import type { Profile } from '@/types/database';
+import { ROLE_CONFIGS, isStaffRole } from '@/lib/permissions';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSettingsPage() {
   const supabase = await createClient();
 
-  // Fetch admin profiles
-  const { data: admins } = await supabase
+  // Fetch all user profiles
+  const { data: profiles } = await supabase
     .from('profiles')
     .select('id, email, role, created_at')
     .order('created_at', { ascending: true });
 
-  const adminList = (admins || []) as unknown as Profile[];
+  const allUsers = (profiles || []) as unknown as Profile[];
+  const staffUsers = allUsers.filter((u) => isStaffRole(u.role));
 
   return (
     <div className="space-y-6">
@@ -22,7 +25,7 @@ export default async function AdminSettingsPage() {
           System-Einstellungen & Status
         </h1>
         <p className="text-xs text-zinc-400 mt-0.5">
-          Technische Konfiguration der Survivalecke Mod-Datenbank
+          Technische Konfiguration und Team-Übersicht der Survivalecke Mod-Datenbank
         </p>
       </div>
 
@@ -56,7 +59,7 @@ export default async function AdminSettingsPage() {
               <span className="text-zinc-400">Row Level Security (RLS)</span>
               <span className="text-emerald-400 font-mono flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Aktiviert</span>
+                <span>Aktiviert (Strenges RBAC)</span>
               </span>
             </div>
 
@@ -67,34 +70,48 @@ export default async function AdminSettingsPage() {
           </div>
         </div>
 
-        {/* Administrator Accounts */}
+        {/* Team Accounts */}
         <div className="bg-[#14161b] border border-[#232730] rounded-md p-6 space-y-4">
-          <div className="flex items-center gap-2 border-b border-[#20242e] pb-3">
-            <Lock className="w-4 h-4 text-amber-400" />
-            <h2 className="text-sm font-semibold text-zinc-200">
-              Registrierte Administratoren ({adminList.length})
-            </h2>
+          <div className="flex items-center justify-between border-b border-[#20242e] pb-3">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-sm font-semibold text-zinc-200">
+                Team-Mitglieder ({staffUsers.length})
+              </h2>
+            </div>
+            <Link
+              href="/admin/users"
+              className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+            >
+              <span>Verwalten</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
 
-          {adminList.length > 0 ? (
+          {staffUsers.length > 0 ? (
             <ul className="divide-y divide-[#1e222a] text-xs">
-              {adminList.map((admin) => (
-                <li key={admin.id} className="py-2 flex items-center justify-between">
-                  <div>
-                    <span className="font-medium text-zinc-200">{admin.email}</span>
-                    <span className="block text-[10px] text-zinc-400 font-mono">
-                      ID: {admin.id.slice(0, 8)}...
+              {staffUsers.map((member) => {
+                const config = ROLE_CONFIGS[member.role] || ROLE_CONFIGS.member;
+                return (
+                  <li key={member.id} className="py-2.5 flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-zinc-200">{member.email}</span>
+                      <span className="block text-[10px] text-zinc-400 font-mono">
+                        ID: {member.id.slice(0, 8)}...
+                      </span>
+                    </div>
+                    <span
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded border ${config.badgeColorClass}`}
+                    >
+                      {config.badge}
                     </span>
-                  </div>
-                  <span className="text-[10px] font-mono uppercase bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 px-2 py-0.5 rounded">
-                    {admin.role}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <div className="text-xs text-zinc-400">
-              Keine Administratoren registriert.
+              Keine Teammitglieder registriert.
             </div>
           )}
         </div>

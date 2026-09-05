@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import type { Profile } from '@/types/database';
+import { isStaffRole, isAdminRole, isOwnerRole } from '@/lib/permissions';
 
 export async function getCurrentUser() {
   try {
@@ -42,14 +43,60 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   }
 }
 
-export async function requireAdmin(): Promise<{ user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>; profile: Profile }> {
+/**
+ * Requires user to have any team/staff role: owner, project_lead, admin, or moderator.
+ */
+export async function requireStaff(): Promise<{
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+  profile: Profile;
+}> {
   const user = await getCurrentUser();
   if (!user) {
     redirect('/admin/login');
   }
 
   const profile = await getCurrentProfile();
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !isStaffRole(profile.role)) {
+    redirect('/admin/login?error=unauthorized');
+  }
+
+  return { user, profile };
+}
+
+/**
+ * Requires user to have an administrative role: owner, project_lead, or admin.
+ */
+export async function requireAdmin(): Promise<{
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+  profile: Profile;
+}> {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/admin/login');
+  }
+
+  const profile = await getCurrentProfile();
+  if (!profile || !isAdminRole(profile.role)) {
+    redirect('/admin/login?error=unauthorized');
+  }
+
+  return { user, profile };
+}
+
+/**
+ * Requires user to have the owner role.
+ */
+export async function requireOwner(): Promise<{
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+  profile: Profile;
+}> {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/admin/login');
+  }
+
+  const profile = await getCurrentProfile();
+  if (!profile || !isOwnerRole(profile.role)) {
     redirect('/admin/login?error=unauthorized');
   }
 
@@ -58,5 +105,10 @@ export async function requireAdmin(): Promise<{ user: NonNullable<Awaited<Return
 
 export async function isCurrentUserAdmin(): Promise<boolean> {
   const profile = await getCurrentProfile();
-  return profile?.role === 'admin';
+  return isAdminRole(profile?.role);
+}
+
+export async function isCurrentUserStaff(): Promise<boolean> {
+  const profile = await getCurrentProfile();
+  return isStaffRole(profile?.role);
 }

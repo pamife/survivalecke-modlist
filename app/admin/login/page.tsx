@@ -18,7 +18,7 @@ export default async function AdminLoginPage() {
     const { count, error } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
-      .eq('role', 'admin');
+      .in('role', ['owner', 'project_lead', 'admin']);
 
     if (!error && count !== null) {
       hasAnyAdmin = count > 0;

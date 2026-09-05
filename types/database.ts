@@ -7,7 +7,7 @@ export type Json =
   | Json[];
 
 export type ModStatus = 'allowed' | 'restricted' | 'blocked' | 'unknown';
-export type UserRole = 'admin' | 'moderator' | 'user';
+export type UserRole = 'owner' | 'project_lead' | 'admin' | 'moderator' | 'member';
 export type SuggestionStatus = 'pending' | 'accepted' | 'rejected';
 export type ModSource = 'modrinth' | 'curseforge' | 'manual';
 
@@ -340,9 +340,15 @@ export type Database = {
     };
     Functions: {
       is_admin: { Args: never; Returns: boolean };
+      is_staff: { Args: never; Returns: boolean };
+      is_owner: { Args: never; Returns: boolean };
       claim_initial_admin: {
         Args: { admin_user_id: string; admin_email: string };
         Returns: boolean;
+      };
+      assign_user_role: {
+        Args: { target_user_id: string; new_role: string };
+        Returns: Json;
       };
     };
     Enums: {

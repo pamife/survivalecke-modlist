@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
+import { isStaffRole } from '@/lib/permissions';
+
 const authSchema = z.object({
   email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein.'),
   password: z.string().min(6, 'Das Passwort muss mindestens 6 Zeichen lang sein.'),
@@ -48,7 +50,7 @@ export async function loginAdmin(
       return { error: authError?.message || 'E-Mail oder Passwort ungültig.' };
     }
 
-    // Check admin role in profiles table
+    // Check staff role in profiles table
     const { data: profileData } = await supabase
       .from('profiles')
       .select('role')
@@ -57,10 +59,10 @@ export async function loginAdmin(
 
     const profile = profileData as { role: string } | null;
 
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !isStaffRole(profile.role)) {
       await supabase.auth.signOut();
       return {
-        error: 'Zugriff verweigert: Dieses Konto besitzt keine Administrator-Berechtigung.',
+        error: 'Zugriff verweigert: Dieses Konto besitzt keine Team-Berechtigung.',
       };
     }
   } catch (err: unknown) {
@@ -98,15 +100,15 @@ export async function setupInitialAdmin(
   try {
     const supabase = await createClient();
 
-    // Strictly check if ANY admin exists in profiles
+    // Strictly check if ANY admin, project_lead, or owner exists in profiles
     const { count, error: countError } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
-      .eq('role', 'admin');
+      .in('role', ['owner', 'project_lead', 'admin']);
 
     if (!countError && (count ?? 0) > 0) {
       return {
-        error: 'Es existiert bereits ein Administrator. Bitte regulär einloggen.',
+        error: 'Es existiert bereits eine administrative Leitung. Bitte regulär einloggen.',
       };
     }
 

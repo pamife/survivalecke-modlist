@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ShieldCheck, Search, PlusCircle, Lock } from 'lucide-react';
+import { ShieldCheck, Search, PlusCircle } from 'lucide-react';
 
 export function Navbar() {
   return (
@@ -40,17 +40,6 @@ export function Navbar() {
             <PlusCircle className="w-3.5 h-3.5 text-zinc-400" />
             <span className="hidden sm:inline">Mod vorschlagen</span>
             <span className="sm:hidden">Vorschlagen</span>
-          </Link>
-
-          <div className="w-px h-4 bg-zinc-800 mx-1 hidden sm:block" />
-
-          <Link
-            href="/admin"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 rounded transition-colors border border-transparent hover:border-zinc-800"
-            title="Admin-Bereich"
-          >
-            <Lock className="w-3 h-3" />
-            <span className="hidden md:inline">Admin</span>
           </Link>
         </nav>
       </div>

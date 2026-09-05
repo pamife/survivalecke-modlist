@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth';
+import { requireStaff } from '@/lib/auth';
 import Link from 'next/link';
 import { signOutAdmin } from '@/actions/adminAuth';
 import {
@@ -7,11 +7,13 @@ import {
   Inbox,
   History,
   Settings,
+  Users,
   LogOut,
   ShieldCheck,
   ExternalLink,
 } from 'lucide-react';
 import type { Metadata } from 'next';
+import { ROLE_CONFIGS, canManageUsers } from '@/lib/permissions';
 
 export const metadata: Metadata = {
   title: {
@@ -26,7 +28,8 @@ export default async function AdminDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, profile } = await requireAdmin();
+  const { user, profile } = await requireStaff();
+  const roleConfig = ROLE_CONFIGS[profile.role] || ROLE_CONFIGS.member;
 
   return (
     <div className="min-h-full flex flex-col bg-[#0b0c0f]">
@@ -39,7 +42,7 @@ export default async function AdminDashboardLayout({
             </div>
             <span className="font-bold text-sm text-white">Survivalecke</span>
             <span className="text-[10px] font-mono uppercase bg-zinc-800 border border-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded">
-              Admin
+              Team
             </span>
           </div>
         </div>
@@ -47,7 +50,13 @@ export default async function AdminDashboardLayout({
         <div className="flex items-center gap-4 text-xs">
           <div className="hidden sm:flex flex-col text-right">
             <span className="text-zinc-200 font-medium">{user.email}</span>
-            <span className="text-[10px] text-emerald-400 font-mono">Rolle: {profile.role}</span>
+            <div className="flex items-center justify-end gap-1 mt-0.5">
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${roleConfig.badgeColorClass}`}
+              >
+                {roleConfig.badge}
+              </span>
+            </div>
           </div>
 
           <Link
@@ -97,6 +106,16 @@ export default async function AdminDashboardLayout({
             <Inbox className="w-3.5 h-3.5 text-zinc-400" />
             <span>Vorschläge</span>
           </Link>
+
+          {canManageUsers(profile.role) && (
+            <Link
+              href="/admin/users"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition-colors shrink-0"
+            >
+              <Users className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Benutzer</span>
+            </Link>
+          )}
 
           <Link
             href="/admin/audit"
