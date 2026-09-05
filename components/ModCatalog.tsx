@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useTransition, useMemo, useRef } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
 import {
@@ -34,6 +33,12 @@ interface ModCatalogProps {
     blocked: number;
     unknown: number;
   };
+  initialQuery?: string;
+  initialStatus?: string;
+  initialLoader?: string;
+  initialVersion?: string;
+  initialCategory?: string;
+  initialSort?: string;
 }
 
 export function ModCatalog({
@@ -42,31 +47,62 @@ export function ModCatalog({
   loaders,
   mcVersions,
   statusCounts,
+  initialQuery = '',
+  initialStatus = '',
+  initialLoader = '',
+  initialVersion = '',
+  initialCategory = '',
+  initialSort = 'name_asc',
 }: ModCatalogProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  // Local state for instant (0ms) responsive UI
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
+  const [selectedLoader, setSelectedLoader] = useState<string>(initialLoader);
+  const [selectedVersion, setSelectedVersion] = useState<string>(initialVersion);
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
+  const [sortOrder, setSortOrder] = useState<string>(initialSort);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Read URL query parameters
-  const currentQ = searchParams.get('q') || '';
-  const currentStatus = searchParams.get('status') || '';
-  const currentLoader = searchParams.get('loader') || '';
-  const currentVersion = searchParams.get('version') || '';
-  const currentCategory = searchParams.get('category') || '';
-  const currentSort = searchParams.get('sort') || 'name_asc';
+  // Sync state when user navigates with browser Back / Forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      setSearchQuery(params.get('q') || '');
+      setSelectedStatus(params.get('status') || '');
+      setSelectedLoader(params.get('loader') || '');
+      setSelectedVersion(params.get('version') || '');
+      setSelectedCategory(params.get('category') || '');
+      setSortOrder(params.get('sort') || 'name_asc');
+    };
 
-  // Local state for debounced search input with render-time prop sync
-  const [prevQ, setPrevQ] = useState(currentQ);
-  const [localSearch, setLocalSearch] = useState(currentQ);
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
-  if (currentQ !== prevQ) {
-    setPrevQ(currentQ);
-    setLocalSearch(currentQ);
-  }
+  // Debounced URL synchronization (updates address bar without server re-fetching)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) params.set('q', searchQuery.trim());
+      if (selectedStatus) params.set('status', selectedStatus);
+      if (selectedLoader) params.set('loader', selectedLoader);
+      if (selectedVersion) params.set('version', selectedVersion);
+      if (selectedCategory) params.set('category', selectedCategory);
+      if (sortOrder && sortOrder !== 'name_asc') params.set('sort', sortOrder);
+
+      const qs = params.toString();
+      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+
+      // Only update if URL actually changed to avoid polluting browser state
+      if (window.location.search !== (qs ? `?${qs}` : '')) {
+        window.history.replaceState(null, '', newUrl);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedStatus, selectedLoader, selectedVersion, selectedCategory, sortOrder]);
 
   // Keyboard shortcut: pressing "/" or "Ctrl+K" focuses search input
   useEffect(() => {
@@ -84,92 +120,93 @@ export function ModCatalog({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Update URL search parameters
-  const updateParams = React.useCallback(
-    (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams.toString());
-
-      for (const [key, value] of Object.entries(updates)) {
-        if (value && value.trim()) {
-          params.set(key, value.trim());
-        } else {
-          params.delete(key);
-        }
-      }
-
-      params.delete('page');
-
-      startTransition(() => {
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      });
-    },
-    [pathname, router, searchParams]
-  );
-
-  // Debounced search effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localSearch !== currentQ) {
-        updateParams({ q: localSearch || null });
-      }
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [localSearch, currentQ, updateParams]);
-
-  const clearSearch = () => {
-    setLocalSearch('');
-    updateParams({ q: null });
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
     searchInputRef.current?.focus();
-  };
+  }, []);
 
-  const clearAllFilters = () => {
-    setLocalSearch('');
-    startTransition(() => {
-      router.replace(pathname, { scroll: false });
-    });
-  };
+  const handleClearAll = useCallback(() => {
+    setSearchQuery('');
+    setSelectedStatus('');
+    setSelectedLoader('');
+    setSelectedVersion('');
+    setSelectedCategory('');
+    setSortOrder('name_asc');
+  }, []);
 
-  const handleStatusClick = (statusValue: string) => {
-    if (currentStatus === statusValue) {
-      updateParams({ status: null }); // Toggle off
-    } else {
-      updateParams({ status: statusValue });
-    }
+  const handleStatusToggle = (statusVal: string) => {
+    setSelectedStatus((prev) => (prev === statusVal ? '' : statusVal));
   };
 
   const hasActiveFilters =
-    Boolean(currentQ) ||
-    Boolean(currentStatus) ||
-    Boolean(currentLoader) ||
-    Boolean(currentVersion) ||
-    Boolean(currentCategory) ||
-    currentSort !== 'name_asc';
+    Boolean(searchQuery.trim()) ||
+    Boolean(selectedStatus) ||
+    Boolean(selectedLoader) ||
+    Boolean(selectedVersion) ||
+    Boolean(selectedCategory) ||
+    sortOrder !== 'name_asc';
 
-  // Client-side sorting on already-filtered server data
-  const sortedMods = useMemo(() => {
-    const list = [...mods];
-    if (currentSort === 'name_desc') {
-      return list.sort((a, b) => b.name.localeCompare(a.name));
+  // Instant client-side filtering and sorting (0ms latency, 60fps)
+  const filteredMods = useMemo(() => {
+    let list = mods;
+
+    // 1. Search Query Filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((m) => {
+        const nameMatch = m.name?.toLowerCase().includes(q);
+        const slugMatch = m.slug?.toLowerCase().includes(q);
+        const idMatch = m.mod_id?.toLowerCase().includes(q);
+        const descMatch = m.description?.toLowerCase().includes(q);
+        const catMatch = m.category?.toLowerCase().includes(q);
+        return nameMatch || slugMatch || idMatch || descMatch || catMatch;
+      });
     }
-    if (currentSort === 'date_desc') {
-      return list.sort((a, b) => {
+
+    // 2. Status Filter
+    if (selectedStatus) {
+      list = list.filter((m) => m.status === selectedStatus);
+    }
+
+    // 3. Loader Filter
+    if (selectedLoader) {
+      list = list.filter((m) => m.loaders?.includes(selectedLoader));
+    }
+
+    // 4. Minecraft Version Filter
+    if (selectedVersion) {
+      list = list.filter((m) => m.minecraft_versions?.includes(selectedVersion));
+    }
+
+    // 5. Category Filter
+    if (selectedCategory) {
+      list = list.filter((m) => m.category === selectedCategory);
+    }
+
+    // 6. Sorting
+    if (sortOrder === 'name_desc') {
+      return [...list].sort((a, b) => b.name.localeCompare(a.name));
+    }
+    if (sortOrder === 'date_desc') {
+      return [...list].sort((a, b) => {
         const timeA = new Date(a.last_reviewed_at || a.updated_at || a.created_at).getTime();
         const timeB = new Date(b.last_reviewed_at || b.updated_at || b.created_at).getTime();
         return timeB - timeA;
       });
     }
-    if (currentSort === 'status') {
+    if (sortOrder === 'status') {
       const order: Record<ModStatus, number> = {
         allowed: 1,
         restricted: 2,
         unknown: 3,
         blocked: 4,
       };
-      return list.sort((a, b) => (order[a.status] || 5) - (order[b.status] || 5));
+      return [...list].sort((a, b) => (order[a.status] || 5) - (order[b.status] || 5));
     }
+
     // Default: name_asc
-    return list.sort((a, b) => a.name.localeCompare(b.name));
-  }, [mods, currentSort]);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [mods, searchQuery, selectedStatus, selectedLoader, selectedVersion, selectedCategory, sortOrder]);
 
   return (
     <div className="space-y-5 pb-[env(safe-area-inset-bottom)]">
@@ -186,15 +223,15 @@ export function ModCatalog({
           ref={searchInputRef}
           id="mod-search-input"
           type="text"
-          value={localSearch}
-          onChange={(e) => setLocalSearch(e.target.value)}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="🔎 Nach einem Mod suchen (z. B. Sodium, Minimap, Fabric API)... [Drücke /]"
           className="w-full bg-[#14161b] border border-[#232730] focus:border-zinc-500 focus:outline-none text-zinc-100 placeholder-zinc-500 rounded-lg py-3 pl-10 pr-10 text-sm transition-colors shadow-inner"
         />
-        {localSearch && (
+        {searchQuery && (
           <button
             type="button"
-            onClick={clearSearch}
+            onClick={handleClearSearch}
             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-200 cursor-pointer transition-colors"
             title="Suche leeren"
             aria-label="Sucheingabe löschen"
@@ -209,9 +246,9 @@ export function ModCatalog({
         {/* Alle */}
         <button
           type="button"
-          onClick={() => updateParams({ status: null })}
+          onClick={() => setSelectedStatus('')}
           className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap cursor-pointer transition-all ${
-            !currentStatus
+            !selectedStatus
               ? 'bg-zinc-200 text-zinc-900 shadow'
               : 'bg-[#14161b] text-zinc-400 hover:text-zinc-200 border border-[#232730] hover:border-zinc-600'
           }`}
@@ -219,7 +256,7 @@ export function ModCatalog({
           <span>Alle</span>
           <span
             className={`text-[11px] px-1.5 py-0.2 rounded font-mono ${
-              !currentStatus ? 'bg-zinc-300 text-zinc-950 font-bold' : 'bg-zinc-800 text-zinc-400'
+              !selectedStatus ? 'bg-zinc-300 text-zinc-950 font-bold' : 'bg-zinc-800 text-zinc-400'
             }`}
           >
             {statusCounts.total}
@@ -229,9 +266,9 @@ export function ModCatalog({
         {/* Erlaubt */}
         <button
           type="button"
-          onClick={() => handleStatusClick('allowed')}
+          onClick={() => handleStatusToggle('allowed')}
           className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap cursor-pointer transition-all ${
-            currentStatus === 'allowed'
+            selectedStatus === 'allowed'
               ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500 shadow-sm ring-1 ring-emerald-500/30'
               : 'bg-[#14161b] text-zinc-300 hover:text-emerald-300 border border-[#232730] hover:border-emerald-800/60'
           }`}
@@ -246,9 +283,9 @@ export function ModCatalog({
         {/* Eingeschränkt */}
         <button
           type="button"
-          onClick={() => handleStatusClick('restricted')}
+          onClick={() => handleStatusToggle('restricted')}
           className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap cursor-pointer transition-all ${
-            currentStatus === 'restricted'
+            selectedStatus === 'restricted'
               ? 'bg-amber-950/80 text-amber-300 border border-amber-500 shadow-sm ring-1 ring-amber-500/30'
               : 'bg-[#14161b] text-zinc-300 hover:text-amber-300 border border-[#232730] hover:border-amber-800/60'
           }`}
@@ -263,9 +300,9 @@ export function ModCatalog({
         {/* Verboten */}
         <button
           type="button"
-          onClick={() => handleStatusClick('blocked')}
+          onClick={() => handleStatusToggle('blocked')}
           className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap cursor-pointer transition-all ${
-            currentStatus === 'blocked'
+            selectedStatus === 'blocked'
               ? 'bg-rose-950/80 text-rose-300 border border-rose-500 shadow-sm ring-1 ring-rose-500/30'
               : 'bg-[#14161b] text-zinc-300 hover:text-rose-300 border border-[#232730] hover:border-rose-800/60'
           }`}
@@ -280,9 +317,9 @@ export function ModCatalog({
         {/* Ungeprüft */}
         <button
           type="button"
-          onClick={() => handleStatusClick('unknown')}
+          onClick={() => handleStatusToggle('unknown')}
           className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap cursor-pointer transition-all ${
-            currentStatus === 'unknown'
+            selectedStatus === 'unknown'
               ? 'bg-zinc-800 text-zinc-200 border border-zinc-500 shadow-sm'
               : 'bg-[#14161b] text-zinc-400 hover:text-zinc-200 border border-[#232730] hover:border-zinc-600'
           }`}
@@ -301,8 +338,8 @@ export function ModCatalog({
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* Loader Select */}
             <select
-              value={currentLoader}
-              onChange={(e) => updateParams({ loader: e.target.value || null })}
+              value={selectedLoader}
+              onChange={(e) => setSelectedLoader(e.target.value)}
               className="bg-[#101216] border border-[#262b35] text-zinc-300 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-zinc-500 cursor-pointer"
             >
               <option value="">Alle Loader</option>
@@ -315,8 +352,8 @@ export function ModCatalog({
 
             {/* Minecraft Version Select */}
             <select
-              value={currentVersion}
-              onChange={(e) => updateParams({ version: e.target.value || null })}
+              value={selectedVersion}
+              onChange={(e) => setSelectedVersion(e.target.value)}
               className="bg-[#101216] border border-[#262b35] text-zinc-300 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-zinc-500 cursor-pointer font-mono"
             >
               <option value="">Alle MC-Versionen</option>
@@ -329,8 +366,8 @@ export function ModCatalog({
 
             {/* Category Select */}
             <select
-              value={currentCategory}
-              onChange={(e) => updateParams({ category: e.target.value || null })}
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
               className="bg-[#101216] border border-[#262b35] text-zinc-300 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-zinc-500 cursor-pointer"
             >
               <option value="">Alle Kategorien</option>
@@ -345,8 +382,8 @@ export function ModCatalog({
           {/* Right Side: Sort & View Toggle */}
           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
             <select
-              value={currentSort}
-              onChange={(e) => updateParams({ sort: e.target.value })}
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
               className="bg-[#101216] border border-[#262b35] text-zinc-300 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-zinc-500 cursor-pointer"
             >
               <option value="name_asc">Sortierung: Name A → Z</option>
@@ -393,33 +430,30 @@ export function ModCatalog({
               <span>Aktive Filter:</span>
             </span>
 
-            {currentQ && (
+            {searchQuery.trim() && (
               <button
                 type="button"
-                onClick={() => {
-                  setLocalSearch('');
-                  updateParams({ q: null });
-                }}
+                onClick={handleClearSearch}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] transition-colors cursor-pointer"
               >
-                <span>Suche: &bdquo;{currentQ}&ldquo;</span>
+                <span>Suche: &bdquo;{searchQuery.trim()}&ldquo;</span>
                 <X className="w-3 h-3" />
               </button>
             )}
 
-            {currentStatus && (
+            {selectedStatus && (
               <button
                 type="button"
-                onClick={() => updateParams({ status: null })}
+                onClick={() => setSelectedStatus('')}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] transition-colors cursor-pointer"
               >
                 <span>
                   Status:{' '}
-                  {currentStatus === 'allowed'
+                  {selectedStatus === 'allowed'
                     ? 'Erlaubt'
-                    : currentStatus === 'restricted'
+                    : selectedStatus === 'restricted'
                     ? 'Eingeschränkt'
-                    : currentStatus === 'blocked'
+                    : selectedStatus === 'blocked'
                     ? 'Verboten'
                     : 'Ungeprüft'}
                 </span>
@@ -427,42 +461,42 @@ export function ModCatalog({
               </button>
             )}
 
-            {currentLoader && (
+            {selectedLoader && (
               <button
                 type="button"
-                onClick={() => updateParams({ loader: null })}
+                onClick={() => setSelectedLoader('')}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] transition-colors cursor-pointer"
               >
-                <span>Loader: {currentLoader}</span>
+                <span>Loader: {selectedLoader}</span>
                 <X className="w-3 h-3" />
               </button>
             )}
 
-            {currentVersion && (
+            {selectedVersion && (
               <button
                 type="button"
-                onClick={() => updateParams({ version: null })}
+                onClick={() => setSelectedVersion('')}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] transition-colors cursor-pointer"
               >
-                <span>MC: {currentVersion}</span>
+                <span>MC: {selectedVersion}</span>
                 <X className="w-3 h-3" />
               </button>
             )}
 
-            {currentCategory && (
+            {selectedCategory && (
               <button
                 type="button"
-                onClick={() => updateParams({ category: null })}
+                onClick={() => setSelectedCategory('')}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] transition-colors cursor-pointer"
               >
-                <span>Kategorie: {currentCategory}</span>
+                <span>Kategorie: {selectedCategory}</span>
                 <X className="w-3 h-3" />
               </button>
             )}
 
             <button
               type="button"
-              onClick={clearAllFilters}
+              onClick={handleClearAll}
               className="text-[11px] text-zinc-400 hover:text-white underline ml-1 cursor-pointer transition-colors"
             >
               Alle Filter zurücksetzen
@@ -475,14 +509,13 @@ export function ModCatalog({
       <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
         <div>
           <span>
-            {sortedMods.length} {sortedMods.length === 1 ? 'Mod' : 'Mods'} gefunden
+            {filteredMods.length} {filteredMods.length === 1 ? 'Mod' : 'Mods'} gefunden
           </span>
-          {isPending && <span className="ml-2 text-emerald-400">(Wird geladen...)</span>}
         </div>
       </div>
 
       {/* MODS LIST */}
-      {sortedMods.length > 0 ? (
+      {filteredMods.length > 0 ? (
         viewMode === 'table' ? (
           /* DESKTOP TABLE VIEW */
           <div className="border border-[#232730] rounded-lg overflow-hidden bg-[#14161b]">
@@ -500,7 +533,7 @@ export function ModCatalog({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1e222a]">
-                  {sortedMods.map((mod) => (
+                  {filteredMods.map((mod) => (
                     <tr
                       key={mod.id}
                       className="hover:bg-[#181b22] transition-colors group"
@@ -598,7 +631,7 @@ export function ModCatalog({
         ) : (
           /* COMPACT CARDS / LIST VIEW (Default, highly legible) */
           <div className="grid grid-cols-1 gap-3">
-            {sortedMods.map((mod) => (
+            {filteredMods.map((mod) => (
               <div
                 key={mod.id}
                 className="bg-[#14161b] border border-[#232730] hover:border-zinc-600 rounded-lg p-4 sm:p-5 transition-colors relative group"
@@ -760,7 +793,7 @@ export function ModCatalog({
             {hasActiveFilters && (
               <button
                 type="button"
-                onClick={clearAllFilters}
+                onClick={handleClearAll}
                 className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded transition-colors cursor-pointer"
               >
                 Filter zurücksetzen
@@ -768,7 +801,7 @@ export function ModCatalog({
             )}
 
             <Link
-              href={currentQ ? `/suggest?name=${encodeURIComponent(currentQ)}` : '/suggest'}
+              href={searchQuery.trim() ? `/suggest?name=${encodeURIComponent(searchQuery.trim())}` : '/suggest'}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded transition-colors"
             >
               <PlusCircle className="w-3.5 h-3.5" />

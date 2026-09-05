@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ModCatalog } from '@/components/ModCatalog';
 import { processMinecraftVersions } from '@/lib/minecraft';
 import { PlusCircle, AlertCircle } from 'lucide-react';
-import type { ModWithRestrictions, ModStatus } from '@/types/database';
+import type { ModWithRestrictions } from '@/types/database';
 
 export const metadata: Metadata = {
   title: 'Mods – Survivalecke Mod-Datenbank',
@@ -32,15 +32,17 @@ export default async function ModsPage({ searchParams }: PageProps) {
   const loader = resolvedParams.loader?.trim() || '';
   const version = resolvedParams.version?.trim() || '';
   const category = resolvedParams.category?.trim() || '';
+  const sort = resolvedParams.sort?.trim() || 'name_asc';
 
   const supabase = await createClient();
 
-  // 1. Fetch metadata for counts and filter dropdown options across the full database
-  const { data: allModsMeta, error: metaErr } = await supabase
+  // Single fast query for all mods with their restrictions
+  const { data: allModsData, error } = await supabase
     .from('mods')
-    .select('id, status, category, loaders, minecraft_versions');
+    .select('*, mod_restrictions(id, title, description)')
+    .order('name', { ascending: true });
 
-  if (metaErr || !allModsMeta) {
+  if (error || !allModsData) {
     return (
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="border border-rose-800/60 rounded-lg p-8 text-center bg-[#14161b] space-y-4">
@@ -66,86 +68,30 @@ export default async function ModsPage({ searchParams }: PageProps) {
     );
   }
 
+  const allMods = allModsData as unknown as ModWithRestrictions[];
+
   // Calculate status counts
   const statusCounts = {
-    total: allModsMeta.length,
-    allowed: allModsMeta.filter((m) => m.status === 'allowed').length,
-    restricted: allModsMeta.filter((m) => m.status === 'restricted').length,
-    blocked: allModsMeta.filter((m) => m.status === 'blocked').length,
-    unknown: allModsMeta.filter((m) => m.status === 'unknown').length,
+    total: allMods.length,
+    allowed: allMods.filter((m) => m.status === 'allowed').length,
+    restricted: allMods.filter((m) => m.status === 'restricted').length,
+    blocked: allMods.filter((m) => m.status === 'blocked').length,
+    unknown: allMods.filter((m) => m.status === 'unknown').length,
   };
 
   // Collect available filter options
   const categories = Array.from(
-    new Set(allModsMeta.map((m) => m.category).filter(Boolean))
+    new Set(allMods.map((m) => m.category).filter(Boolean))
   ).sort();
 
   const loaders = Array.from(
-    new Set(allModsMeta.flatMap((m) => m.loaders || []).filter(Boolean))
+    new Set(allMods.flatMap((m) => m.loaders || []).filter(Boolean))
   ).sort();
 
   const rawMcVersions = Array.from(
-    new Set(allModsMeta.flatMap((m) => m.minecraft_versions || []).filter(Boolean))
+    new Set(allMods.flatMap((m) => m.minecraft_versions || []).filter(Boolean))
   );
   const { releases: mcVersions } = processMinecraftVersions(rawMcVersions);
-
-  // 2. Build Query for filtered results (with relations to mod_restrictions)
-  let queryBuilder = supabase
-    .from('mods')
-    .select('*, mod_restrictions(id, title, description)')
-    .order('name', { ascending: true });
-
-  if (q) {
-    queryBuilder = queryBuilder.or(
-      `name.ilike.%${q}%,mod_id.ilike.%${q}%,slug.ilike.%${q}%,description.ilike.%${q}%`
-    );
-  }
-
-  if (status && ['allowed', 'restricted', 'blocked', 'unknown'].includes(status)) {
-    queryBuilder = queryBuilder.eq('status', status as ModStatus);
-  }
-
-  if (category) {
-    queryBuilder = queryBuilder.eq('category', category);
-  }
-
-  if (loader) {
-    queryBuilder = queryBuilder.contains('loaders', [loader]);
-  }
-
-  if (version) {
-    queryBuilder = queryBuilder.contains('minecraft_versions', [version]);
-  }
-
-  const { data: modsData, error: queryErr } = await queryBuilder;
-
-  if (queryErr) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
-        <div className="border border-rose-800/60 rounded-lg p-8 text-center bg-[#14161b] space-y-4">
-          <div className="w-10 h-10 rounded-full bg-rose-950/60 border border-rose-800 flex items-center justify-center text-rose-400 mx-auto">
-            <AlertCircle className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold text-white">
-              Fehler beim Filtern der Mods
-            </h2>
-            <p className="text-xs text-zinc-400">
-              Ein Fehler ist bei der Suche aufgetreten.
-            </p>
-          </div>
-          <Link
-            href="/mods"
-            className="inline-flex items-center gap-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded transition-colors"
-          >
-            Alle Filter zurücksetzen
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const mods = (modsData || []) as unknown as ModWithRestrictions[];
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 w-full space-y-6">
@@ -172,13 +118,19 @@ export default async function ModsPage({ searchParams }: PageProps) {
         </Link>
       </div>
 
-      {/* Main Catalog View with Filters and Live Search */}
+      {/* Main Catalog View with Instant Search and Background URL Sync */}
       <ModCatalog
-        mods={mods}
+        mods={allMods}
         categories={categories}
         loaders={loaders}
         mcVersions={mcVersions}
         statusCounts={statusCounts}
+        initialQuery={q}
+        initialStatus={status}
+        initialLoader={loader}
+        initialVersion={version}
+        initialCategory={category}
+        initialSort={sort}
       />
     </div>
   );
